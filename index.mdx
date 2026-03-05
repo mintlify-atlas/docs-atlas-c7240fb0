@@ -1,97 +1,163 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Awesome Android Agent Skills
+description: Supercharge your AI coding assistants with expert knowledge of modern Android development
 ---
 
-## Setting up
+<div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 mb-8">
+  <h1 className="text-5xl font-bold text-gray-900 mb-4">
+    Awesome Android Agent Skills
+  </h1>
+  <p className="text-xl text-gray-700 mb-6">
+    A collection of standardized Agent Skills to teach GitHub Copilot, Claude, Gemini, and Cursor about modern Android development with Kotlin and Jetpack Compose.
+  </p>
+  <div className="flex gap-4">
+    <a 
+      href="/quickstart" 
+      className="inline-block px-6 py-3 text-sm font-bold text-gray-900 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+    >
+      Get Started
+    </a>
+    <a 
+      href="https://github.com/new-silvermoon/awesome-android-agent-skills" 
+      className="inline-block px-6 py-3 text-sm font-bold text-gray-900 bg-transparent border border-gray-900 rounded-none hover:bg-gray-100 transition-colors"
+    >
+      View on GitHub
+    </a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## What are Agent Skills?
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+**Agent Skills** are a standardized way to package capabilities, instructions, and best practices for AI agents. Instead of pasting the same prompt repeatedly, you install these skills into your agent's environment.
 
-## Make it yours
+When an agent detects you are working on a relevant task, it automatically loads the expert instructions from the corresponding `SKILL.md` file. This ensures:
 
-Design a docs site that looks great and empowers your users.
+- **Consistency**: The agent always follows your defined architecture
+- **Accuracy**: It uses the latest 2025 best practices (Compose, Hilt, Room)
+- **Efficiency**: No need for long context-stuffing prompts
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="16 Specialized Skills" icon="brain" href="/introduction">
+    Comprehensive coverage of modern Android development topics
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Clean Architecture" icon="diagram-project" href="/skills/android-architecture">
+    Expert guidance on modularization and dependency injection with Hilt
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Jetpack Compose" icon="layer-group" href="/skills/compose-ui">
+    Best practices for building stateless, performant composables
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Testing Strategies" icon="flask" href="/skills/android-testing">
+    Unit, Hilt, and screenshot testing with Roborazzi
   </Card>
-</Columns>
+  <Card title="Performance Optimization" icon="gauge-high" href="/skills/compose-performance-audit">
+    Audit and optimize Compose runtime performance
+  </Card>
+  <Card title="Accessibility" icon="universal-access" href="/skills/android-accessibility">
+    WCAG compliance and TalkBack optimization checklists
+  </Card>
+  <Card title="Kotlin Coroutines" icon="gears" href="/skills/kotlin-concurrency-expert">
+    Structured concurrency and lifecycle-safe patterns
+  </Card>
+  <Card title="Multi-Agent Support" icon="robot" href="/usage">
+    Compatible with GitHub Copilot, Claude, Gemini, and Cursor
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## Available Skills
 
-Everything you need to create world-class documentation.
+Explore our comprehensive collection of Agent Skills designed for modern Android development:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+### Architecture & State Management
+- **[Android Architecture](/skills/android-architecture)** - Clean Architecture, Modularization, and Hilt DI
+- **[ViewModel & State](/skills/android-viewmodel)** - StateFlow and SharedFlow patterns
+- **[Data Layer](/skills/android-data-layer)** - Repository pattern with Room and Retrofit
 
-## Need inspiration?
+### UI Development
+- **[Jetpack Compose UI](/skills/compose-ui)** - State hoisting and best practices
+- **[Compose Navigation](/skills/compose-navigation)** - Type-safe navigation patterns
+- **[XML to Compose Migration](/skills/xml-to-compose-migration)** - Migration patterns and component mapping
+- **[Coil for Compose](/skills/coil-compose)** - Image loading with Coil
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+### Quality & Testing
+- **[Accessibility](/skills/android-accessibility)** - Content descriptions, touch targets, and contrast
+- **[Testing & Screenshots](/skills/android-testing)** - Unit, Hilt, and Roborazzi testing
+
+### Performance
+- **[Compose Performance Audit](/skills/compose-performance-audit)** - Recomposition optimization
+- **[Gradle Build Performance](/skills/gradle-build-performance)** - Build speed optimization
+
+### Advanced Topics
+- **[Kotlin Concurrency Expert](/skills/kotlin-concurrency-expert)** - Coroutines debugging and best practices
+- **[Retrofit Networking](/skills/android-retrofit)** - OkHttp and serialization patterns
+- **[Gradle Build Logic](/skills/android-gradle-logic)** - Convention plugins and version catalogs
+- **[Android Emulator Automation](/skills/android-emulator-skill)** - ADB and UIAutomator workflows
+
+## Quick Start
+
+<Steps>
+  <Step title="Copy Skills to Your Project">
+    Copy the `.github/skills/` folder from the repository to your project's root directory.
+    
+    ```bash
+    # Clone the repository
+    git clone https://github.com/new-silvermoon/awesome-android-agent-skills.git
+    
+    # Copy skills to your project
+    cp -r awesome-android-agent-skills/.github/skills your-project/.github/
+    ```
+  </Step>
+  
+  <Step title="Verify Structure">
+    Ensure your project structure looks like this:
+    
+    ```text
+    my-android-project/
+    ├── .github/
+    │   └── skills/
+    │       ├── android-architecture/
+    │       │   └── SKILL.md
+    │       ├── compose-ui/
+    │       │   └── SKILL.md
+    │       └── ...
+    ├── app/
+    └── ...
+    ```
+  </Step>
+  
+  <Step title="Start Using with Your AI Assistant">
+    Your AI agent will automatically detect and use these skills when working on relevant tasks. Simply ask questions like:
+    
+    - "How should I structure the new User Profile feature?"
+    - "Create a repository for fetching News with offline support."
+    - "Refactor this screen following Compose best practices."
+  </Step>
+</Steps>
+
+## Compatible AI Tools
+
+These Agent Skills work seamlessly with popular AI coding assistants:
+
+- **GitHub Copilot** - Automatically detects skills in `.github/skills/`
+- **Claude / Anthropic** - Place skills in `.claude/skills/`
+- **OpenCode** - Supports `.opencode/skill/` and `.claude/skills/`
+- **Cursor** - Point to skill files directly
+- **Google Gemini** - Use with custom prompts
+
+<Note>
+Learn more about Agent Skills at [agentskills.io](https://agentskills.io).
+</Note>
+
+## Open Source
+
+This project is open source and licensed under Apache 2.0. Contributions are welcome!
+
+<CardGroup cols={2}>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/new-silvermoon/awesome-android-agent-skills">
+    View source code and contribute
+  </Card>
+  <Card title="Create Custom Skills" icon="code" href="/resources/creating-custom-skills">
+    Learn how to create your own Agent Skills
+  </Card>
+</CardGroup>

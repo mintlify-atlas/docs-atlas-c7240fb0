@@ -1,0 +1,333 @@
+---
+title: 'Android ViewModel & State Management'
+description: 'Best practices for implementing Android ViewModels with StateFlow for UI state and SharedFlow for one-off events'
+---
+
+## Overview
+
+The `android-viewmodel` skill provides best practices for implementing Android ViewModels with proper state management. It focuses on using `StateFlow` for persistent UI state and `SharedFlow` for one-off events, ensuring proper handling of configuration changes.
+
+**When to use this skill:**
+- Implementing ViewModels for Activities or Composables
+- Managing UI state that survives configuration changes
+- Handling one-off events like navigation or showing toasts
+- Setting up reactive UI updates with Flows
+- Ensuring lifecycle-aware state collection
+
+## Core Concept
+
+`ViewModel` holds state and business logic that must outlive configuration changes (like screen rotation). It acts as the bridge between the UI layer and the business logic/data layer.
+
+## UI State with StateFlow
+
+### What is UI State?
+
+UI State represents the **persistent state** of the UI, such as:
+- Loading states
+- Success data
+- Error messages
+- Form input values
+
+### Implementation Pattern
+
+```kotlin
+data class NewsUiState(
+    val isLoading: Boolean = false,
+    val news: List<News> = emptyList(),
+    val error: String? = null
+)
+
+@HiltViewModel
+class NewsViewModel @Inject constructor(
+    private val getNewsUseCase: GetNewsUseCase
+) : ViewModel() {
+    
+    private val _uiState = MutableStateFlow(NewsUiState(isLoading = true))
+    val uiState: StateFlow<NewsUiState> = _uiState.asStateFlow()
+    
+    init {
+        loadNews()
+    }
+    
+    private fun loadNews() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            
+            try {
+                val news = getNewsUseCase()
+                _uiState.update { it.copy(isLoading = false, news = news) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
+            }
+        }
+    }
+}
+```
+
+### Key Requirements
+
+<CardGroup cols={2}>
+  <Card title="Type" icon="code">
+    Use `StateFlow<UiState>` for all persistent state
+  </Card>
+  <Card title="Initial Value" icon="flag">
+    Must have an initial value (e.g., `Loading` state)
+  </Card>
+  <Card title="Exposure" icon="eye">
+    Expose as read-only `StateFlow`, backed by private `MutableStateFlow`
+  </Card>
+  <Card title="Updates" icon="arrows-rotate">
+    Use `.update { }` for thread-safe state updates
+  </Card>
+</CardGroup>
+
+<Tip>
+Always use `.update { oldState -> ... }` instead of direct assignment for thread safety:
+
+```kotlin
+// Good - Thread-safe
+_uiState.update { it.copy(isLoading = false) }
+
+// Bad - Not thread-safe
+_uiState.value = _uiState.value.copy(isLoading = false)
+```
+</Tip>
+
+## One-Off Events with SharedFlow
+
+### What are One-Off Events?
+
+One-off events are **transient actions** that should happen once, such as:
+- Showing a toast message
+- Navigating to another screen
+- Showing a snackbar
+- Triggering haptic feedback
+
+### Implementation Pattern
+
+```kotlin
+sealed class UiEvent {
+    data class ShowToast(val message: String) : UiEvent()
+    data class Navigate(val route: String) : UiEvent()
+    data object ShowSnackbar : UiEvent()
+}
+
+@HiltViewModel
+class NewsViewModel @Inject constructor(
+    private val getNewsUseCase: GetNewsUseCase
+) : ViewModel() {
+    
+    private val _uiEvent = MutableSharedFlow<UiEvent>(replay = 0)
+    val uiEvent: SharedFlow<UiEvent> = _uiEvent.asSharedFlow()
+    
+    fun onNewsItemClick(newsId: String) {
+        viewModelScope.launch {
+            _uiEvent.emit(UiEvent.Navigate("news/$newsId"))
+        }
+    }
+    
+    fun onShareClick() {
+        viewModelScope.launch {
+            _uiEvent.emit(UiEvent.ShowToast("Sharing..."))
+        }
+    }
+}
+```
+
+### Key Requirements
+
+<Warning>
+**Critical:** Must use `replay = 0` to prevent events from re-triggering on screen rotation or configuration changes.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Type" icon="code">
+    Use `SharedFlow<UiEvent>` for transient events
+  </Card>
+  <Card title="Replay" icon="rotate-left">
+    Must set `replay = 0` to avoid re-triggering
+  </Card>
+  <Card title="Sending" icon="paper-plane">
+    Use `.emit(event)` (suspend) or `.tryEmit(event)`
+  </Card>
+  <Card title="Consumption" icon="check">
+    Events are consumed once and not replayed
+  </Card>
+</CardGroup>
+
+## Collecting in UI
+
+### Jetpack Compose
+
+<CodeGroup>
+```kotlin StateFlow Collection
+@Composable
+fun NewsScreen(
+    viewModel: NewsViewModel = hiltViewModel()
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    
+    when {
+        state.isLoading -> LoadingIndicator()
+        state.error != null -> ErrorMessage(state.error!!)
+        else -> NewsList(news = state.news)
+    }
+}
+```
+
+```kotlin SharedFlow Collection
+@Composable
+fun NewsScreen(
+    viewModel: NewsViewModel = hiltViewModel(),
+    onNavigate: (String) -> Unit
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEvent.ShowToast -> {
+                        // Show toast
+                    }
+                    is UiEvent.Navigate -> {
+                        onNavigate(event.route)
+                    }
+                }
+            }
+        }
+    }
+}
+```
+</CodeGroup>
+
+<Tip>
+Use `collectAsStateWithLifecycle()` for `StateFlow` in Compose - it automatically handles lifecycle awareness and prevents unnecessary recompositions.
+</Tip>
+
+### XML Views
+
+```kotlin
+class NewsFragment : Fragment() {
+    
+    private val viewModel: NewsViewModel by viewModels()
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        // Collect StateFlow
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { state ->
+                    updateUI(state)
+                }
+            }
+        }
+        
+        // Collect SharedFlow
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiEvent.collect { event ->
+                    handleEvent(event)
+                }
+            }
+        }
+    }
+}
+```
+
+<Warning>
+Always use `repeatOnLifecycle(Lifecycle.State.STARTED)` in Views to ensure collection stops when the UI is not visible, preventing memory leaks and wasted resources.
+</Warning>
+
+## ViewModel Scope
+
+### Using viewModelScope
+
+```kotlin
+@HiltViewModel
+class NewsViewModel @Inject constructor(
+    private val repository: NewsRepository
+) : ViewModel() {
+    
+    fun refreshNews() {
+        viewModelScope.launch {
+            // This coroutine is automatically cancelled when ViewModel is cleared
+            repository.refreshNews()
+        }
+    }
+}
+```
+
+<Check>
+- Use `viewModelScope` for all coroutines started by the ViewModel
+- Coroutines are automatically cancelled when the ViewModel is cleared
+- Delegate specific operations to UseCases or Repositories
+- Don't perform heavy operations directly in the ViewModel
+</Check>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="StateFlow for State" icon="database">
+    Use StateFlow for persistent UI state that survives configuration changes
+  </Card>
+  <Card title="SharedFlow for Events" icon="bolt">
+    Use SharedFlow with `replay = 0` for one-off events
+  </Card>
+  <Card title="Thread-Safe Updates" icon="lock">
+    Always use `.update { }` for modifying StateFlow values
+  </Card>
+  <Card title="Lifecycle Awareness" icon="heart-pulse">
+    Collect flows with lifecycle awareness to prevent leaks
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Loading, Success, Error Pattern
+
+```kotlin
+sealed interface UiState<out T> {
+    data object Loading : UiState<Nothing>
+    data class Success<T>(val data: T) : UiState<T>
+    data class Error(val message: String) : UiState<Nothing>
+}
+
+@HiltViewModel
+class NewsViewModel @Inject constructor(
+    private val getNewsUseCase: GetNewsUseCase
+) : ViewModel() {
+    
+    private val _uiState = MutableStateFlow<UiState<List<News>>>(UiState.Loading)
+    val uiState: StateFlow<UiState<List<News>>> = _uiState.asStateFlow()
+    
+    init {
+        loadNews()
+    }
+    
+    private fun loadNews() {
+        viewModelScope.launch {
+            _uiState.value = UiState.Loading
+            
+            try {
+                val news = getNewsUseCase()
+                _uiState.value = UiState.Success(news)
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+}
+```
+
+## Related Skills
+
+<CardGroup cols={2}>
+  <Card title="Architecture" href="/skills/android-architecture" icon="sitemap">
+    Learn about the overall Android app architecture
+  </Card>
+  <Card title="Data Layer" href="/skills/android-data-layer" icon="database">
+    Implement repositories and data sources for your ViewModels
+  </Card>
+</CardGroup>

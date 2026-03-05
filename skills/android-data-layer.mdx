@@ -1,0 +1,457 @@
+---
+title: 'Android Data Layer & Offline-First'
+description: 'Guidance on implementing the Data Layer using Repository pattern, Room (Local), and Retrofit (Remote) with offline-first synchronization'
+---
+
+## Overview
+
+The `android-data-layer` skill provides guidance on implementing a robust data layer using the Repository pattern. It focuses on offline-first architecture with Room for local persistence, Retrofit for remote data, and proper synchronization strategies.
+
+**When to use this skill:**
+- Implementing data persistence with Room
+- Fetching data from REST APIs with Retrofit
+- Building offline-first applications
+- Setting up repository patterns
+- Implementing data synchronization strategies
+- Handling network errors gracefully
+
+## Repository Pattern
+
+The Repository acts as the **Single Source of Truth (SSOT)** in your application, deciding whether to return cached data or fetch fresh data from the network.
+
+### Basic Implementation
+
+```kotlin
+class NewsRepository @Inject constructor(
+    private val newsDao: NewsDao,
+    private val newsApi: NewsApi
+) {
+    // Expose data from Local DB as the source of truth
+    val newsStream: Flow<List<News>> = newsDao.getAllNews()
+
+    // Sync operation
+    suspend fun refreshNews() {
+        val remoteNews = newsApi.fetchLatest()
+        newsDao.insertAll(remoteNews)
+    }
+}
+```
+
+### Key Principles
+
+<CardGroup cols={2}>
+  <Card title="Single Source of Truth" icon="database">
+    The repository is the single source of truth for data access
+  </Card>
+  <Card title="Intelligent Caching" icon="brain">
+    Decides when to return cached data vs. fetching fresh data
+  </Card>
+  <Card title="Data Coordination" icon="arrows-split-up-and-left">
+    Coordinates data from multiple sources (local DB, network, etc.)
+  </Card>
+  <Card title="Main-Safe" icon="shield">
+    All repository functions should be main-safe (suspend functions)
+  </Card>
+</CardGroup>
+
+## Local Persistence with Room
+
+Room is used as the primary cache and offline storage mechanism.
+
+### Entity Definition
+
+```kotlin
+@Entity(tableName = "news")
+data class NewsEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val content: String,
+    val publishedAt: Long,
+    val imageUrl: String?
+)
+```
+
+### DAO with Flow
+
+```kotlin
+@Dao
+interface NewsDao {
+    @Query("SELECT * FROM news ORDER BY publishedAt DESC")
+    fun getAllNews(): Flow<List<NewsEntity>>
+    
+    @Query("SELECT * FROM news WHERE id = :newsId")
+    fun getNewsById(newsId: String): Flow<NewsEntity?>
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(news: List<NewsEntity>)
+    
+    @Query("DELETE FROM news")
+    suspend fun deleteAll()
+}
+```
+
+<Tip>
+**Return `Flow<T>` from DAOs** for observable data. This allows the UI to automatically update when the database changes.
+</Tip>
+
+### Database Setup
+
+```kotlin
+@Database(
+    entities = [NewsEntity::class],
+    version = 1,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun newsDao(): NewsDao
+}
+
+// Hilt Module
+@Module
+@InstallIn(SingletonComponent::class)
+object DatabaseModule {
+    @Provides
+    @Singleton
+    fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
+        return Room.databaseBuilder(
+            context,
+            AppDatabase::class.java,
+            "app-database"
+        ).build()
+    }
+    
+    @Provides
+    fun provideNewsDao(database: AppDatabase): NewsDao {
+        return database.newsDao()
+    }
+}
+```
+
+## Remote Data with Retrofit
+
+Retrofit is used for fetching data from backend APIs.
+
+### API Interface
+
+```kotlin
+interface NewsApi {
+    @GET("news/latest")
+    suspend fun fetchLatest(): List<NewsDto>
+    
+    @GET("news/{id}")
+    suspend fun fetchNewsById(@Path("id") id: String): NewsDto
+    
+    @POST("news/{id}/like")
+    suspend fun likeNews(@Path("id") id: String): Response<Unit>
+}
+```
+
+<Check>
+- Use `suspend` functions in Retrofit interfaces for coroutine support
+- Define data transfer objects (DTOs) separate from domain models
+- Use appropriate HTTP method annotations (@GET, @POST, etc.)
+</Check>
+
+### Retrofit Setup
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+    @Provides
+    @Singleton
+    fun provideRetrofit(): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.example.com/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideNewsApi(retrofit: Retrofit): NewsApi {
+        return retrofit.create(NewsApi::class.java)
+    }
+}
+```
+
+### Error Handling
+
+<Warning>
+**Always wrap network calls** in try-catch blocks or use a `Result` wrapper to handle exceptions gracefully (no internet, 404, timeout, etc.).
+</Warning>
+
+```kotlin
+sealed class Result<out T> {
+    data class Success<T>(val data: T) : Result<T>()
+    data class Error(val exception: Exception) : Result<Nothing>()
+}
+
+suspend fun <T> safeApiCall(apiCall: suspend () -> T): Result<T> {
+    return try {
+        Result.Success(apiCall())
+    } catch (e: Exception) {
+        Result.Error(e)
+    }
+}
+
+// Usage in Repository
+suspend fun refreshNews(): Result<Unit> {
+    return safeApiCall {
+        val remoteNews = newsApi.fetchLatest()
+        newsDao.insertAll(remoteNews.map { it.toEntity() })
+    }
+}
+```
+
+## Synchronization Strategies
+
+### Stale-While-Revalidate (Read)
+
+Show local data immediately while fetching fresh data in the background.
+
+```kotlin
+class NewsRepository @Inject constructor(
+    private val newsDao: NewsDao,
+    private val newsApi: NewsApi
+) {
+    val newsStream: Flow<List<News>> = newsDao.getAllNews()
+        .map { entities -> entities.map { it.toDomain() } }
+    
+    suspend fun refreshNews() {
+        try {
+            // Fetch from network
+            val remoteNews = newsApi.fetchLatest()
+            
+            // Update local cache
+            newsDao.insertAll(remoteNews.map { it.toEntity() })
+        } catch (e: Exception) {
+            // Handle error - local data still available
+            Log.e("NewsRepository", "Failed to refresh", e)
+        }
+    }
+}
+```
+
+<CodeGroup>
+```kotlin ViewModel Usage
+@HiltViewModel
+class NewsViewModel @Inject constructor(
+    private val repository: NewsRepository
+) : ViewModel() {
+    
+    // Collect local data immediately
+    val news = repository.newsStream
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+    
+    init {
+        // Trigger background refresh
+        refreshNews()
+    }
+    
+    fun refreshNews() {
+        viewModelScope.launch {
+            repository.refreshNews()
+        }
+    }
+}
+```
+
+```kotlin Compose UI
+@Composable
+fun NewsScreen(
+    viewModel: NewsViewModel = hiltViewModel()
+) {
+    val news by viewModel.news.collectAsStateWithLifecycle()
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = false,
+        onRefresh = { viewModel.refreshNews() }
+    )
+    
+    Box(Modifier.pullRefresh(pullRefreshState)) {
+        NewsList(news = news)
+        PullRefreshIndicator(
+            refreshing = false,
+            state = pullRefreshState
+        )
+    }
+}
+```
+</CodeGroup>
+
+### Outbox Pattern (Write)
+
+For advanced offline-first writes: save changes locally immediately, mark as "unsynced", and use WorkManager to push changes to the server.
+
+```kotlin
+@Entity(tableName = "news_outbox")
+data class NewsOutboxEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val newsId: String,
+    val action: String, // "LIKE", "COMMENT", etc.
+    val payload: String,
+    val isSynced: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface NewsOutboxDao {
+    @Query("SELECT * FROM news_outbox WHERE isSynced = 0")
+    suspend fun getUnsyncedItems(): List<NewsOutboxEntity>
+    
+    @Insert
+    suspend fun insert(item: NewsOutboxEntity)
+    
+    @Query("UPDATE news_outbox SET isSynced = 1 WHERE id = :id")
+    suspend fun markAsSynced(id: String)
+}
+
+class NewsRepository @Inject constructor(
+    private val newsDao: NewsDao,
+    private val newsOutboxDao: NewsOutboxDao,
+    private val newsApi: NewsApi
+) {
+    suspend fun likeNews(newsId: String) {
+        // 1. Apply optimistic update locally
+        newsDao.updateLikeStatus(newsId, liked = true)
+        
+        // 2. Add to outbox
+        newsOutboxDao.insert(
+            NewsOutboxEntity(
+                newsId = newsId,
+                action = "LIKE",
+                payload = ""
+            )
+        )
+        
+        // 3. WorkManager will sync in background
+    }
+}
+```
+
+<Tip>
+Use **WorkManager** for reliable background synchronization. It handles retry logic, network constraints, and battery optimization automatically.
+</Tip>
+
+## Dependency Injection
+
+Bind Repository interfaces to implementations using Hilt.
+
+```kotlin
+// Interface
+interface NewsRepository {
+    val newsStream: Flow<List<News>>
+    suspend fun refreshNews()
+}
+
+// Implementation
+class OfflineFirstNewsRepository @Inject constructor(
+    private val newsDao: NewsDao,
+    private val newsApi: NewsApi
+) : NewsRepository {
+    override val newsStream: Flow<List<News>> = 
+        newsDao.getAllNews().map { entities -> 
+            entities.map { it.toDomain() }
+        }
+    
+    override suspend fun refreshNews() {
+        val remoteNews = newsApi.fetchLatest()
+        newsDao.insertAll(remoteNews.map { it.toEntity() })
+    }
+}
+
+// Hilt Module
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+    @Binds
+    abstract fun bindNewsRepository(
+        impl: OfflineFirstNewsRepository
+    ): NewsRepository
+}
+```
+
+<Check>
+- Use `@Binds` in abstract classes for cleaner interface binding
+- Define repository interfaces in the domain layer
+- Implement repositories in the data layer
+- Inject repository interfaces in ViewModels and UseCases
+</Check>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Local as Truth" icon="database">
+    Local database is the single source of truth
+  </Card>
+  <Card title="Offline-First" icon="wifi-slash">
+    App works offline with cached data
+  </Card>
+  <Card title="Background Sync" icon="arrows-rotate">
+    Sync data in the background without blocking UI
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation">
+    Gracefully handle network errors with Result/try-catch
+  </Card>
+  <Card title="Flow for Observability" icon="water">
+    Use Flow from DAOs for reactive updates
+  </Card>
+  <Card title="Main-Safe Operations" icon="shield">
+    All repository functions are main-safe suspend functions
+  </Card>
+</CardGroup>
+
+## Complete Example
+
+Here's a complete offline-first repository implementation:
+
+```kotlin
+class OfflineFirstNewsRepository @Inject constructor(
+    private val newsDao: NewsDao,
+    private val newsApi: NewsApi,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) : NewsRepository {
+    
+    override val newsStream: Flow<List<News>> = newsDao.getAllNews()
+        .map { entities -> entities.map { it.toDomain() } }
+        .flowOn(ioDispatcher)
+    
+    override suspend fun refreshNews(): Result<Unit> = withContext(ioDispatcher) {
+        try {
+            // Fetch from API
+            val remoteNews = newsApi.fetchLatest()
+            
+            // Transform and save
+            val entities = remoteNews.map { it.toEntity() }
+            newsDao.insertAll(entities)
+            
+            Result.Success(Unit)
+        } catch (e: IOException) {
+            Result.Error(e)
+        } catch (e: HttpException) {
+            Result.Error(e)
+        }
+    }
+    
+    override suspend fun getNewsById(id: String): Flow<News?> {
+        return newsDao.getNewsById(id)
+            .map { it?.toDomain() }
+            .flowOn(ioDispatcher)
+    }
+}
+```
+
+## Related Skills
+
+<CardGroup cols={2}>
+  <Card title="Architecture" href="/skills/android-architecture" icon="sitemap">
+    Understand how the data layer fits into the overall architecture
+  </Card>
+  <Card title="ViewModel" href="/skills/android-viewmodel" icon="diagram-project">
+    Learn how ViewModels consume data from repositories
+  </Card>
+</CardGroup>

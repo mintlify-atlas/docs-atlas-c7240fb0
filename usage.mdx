@@ -1,0 +1,321 @@
+---
+title: Usage
+description: Learn how to use Agent Skills with different AI assistants
+---
+
+## Using Skills with AI Assistants
+
+Once you've installed the skills in your project, your AI assistant will automatically detect and apply them when working on relevant tasks.
+
+## GitHub Copilot
+
+GitHub Copilot automatically discovers skills in `.github/skills/` when they are part of your workspace.
+
+### In Chat
+
+Simply ask Copilot questions related to Android development:
+
+<CodeGroup>
+```text Architecture
+"How should I structure the new User Profile feature?"
+```
+
+```text Data Layer
+"Create a repository for fetching News with offline support."
+```
+
+```text Compose UI
+"Refactor this screen to follow Compose best practices."
+```
+
+```text Accessibility
+"Audit this Composable for accessibility issues."
+```
+</CodeGroup>
+
+Copilot will detect the relevant skill (e.g., `android-architecture`, `android-data-layer`, `compose-ui`, or `android-accessibility`) and apply the rules defined in the `SKILL.md` files.
+
+<Note>
+  Copilot automatically loads skills based on context. You don't need to explicitly mention the skill name.
+</Note>
+
+### Code Completion
+
+When writing code, Copilot's inline suggestions will follow the patterns and conventions defined in your skills:
+
+```kotlin
+// Type: "class NewsViewModel" and Copilot will suggest:
+@HiltViewModel
+class NewsViewModel @Inject constructor(
+    private val getLatestNewsUseCase: GetLatestNewsUseCase
+) : ViewModel() {
+    
+    private val _uiState = MutableStateFlow<NewsUiState>(NewsUiState.Loading)
+    val uiState: StateFlow<NewsUiState> = _uiState.asStateFlow()
+    
+    // Follows android-viewmodel skill patterns
+}
+```
+
+## Claude Desktop / Claude.ai
+
+For Claude, you can either reference skills explicitly or rely on context discovery.
+
+### Explicit Reference
+
+Point Claude to a specific skill file:
+
+```text
+"Read `.github/skills/compose-ui/SKILL.md` and then refactor this screen."
+```
+
+### Context Discovery
+
+If you're using Claude Desktop with the `.claude/skills/` directory configured, you can ask questions naturally:
+
+<CodeGroup>
+```text ViewModel Pattern
+"Show me how to implement a ViewModel with proper state management"
+```
+
+```text Navigation
+"Set up type-safe navigation for my Compose app"
+```
+
+```text Performance
+"Audit this Composable for performance issues"
+```
+</CodeGroup>
+
+<Tip>
+  Use `.claude/skills/` or create a symlink from `.github/skills/` for automatic discovery.
+</Tip>
+
+## Cursor
+
+Cursor works similarly to GitHub Copilot and automatically discovers skills in `.github/skills/`.
+
+### In Composer
+
+Use Cursor's Composer feature to generate entire features following your skills:
+
+```text
+"Create a new feature module for user authentication with:
+- Login screen (Compose)
+- ViewModel with proper state management
+- Repository with offline-first data sync
+- Accessibility support"
+```
+
+Cursor will apply:
+- `android-architecture` for module structure
+- `compose-ui` for the UI layer
+- `android-viewmodel` for state management
+- `android-data-layer` for repository pattern
+- `android-accessibility` for accessibility compliance
+
+### In Chat
+
+Ask questions in the chat sidebar:
+
+```text
+"What's the recommended way to handle navigation in a multi-module app?"
+```
+
+Cursor will reference the `compose-navigation` and `android-architecture` skills.
+
+## OpenCode
+
+OpenCode supports both project-level (`.opencode/skill/`) and global skills (`~/.config/opencode/skill/`).
+
+### Project Skills
+
+For project-specific skills:
+
+```bash
+cp -r .github/skills .opencode/skill
+```
+
+### Global Skills
+
+For skills available across all your Android projects:
+
+```bash
+cp -r .github/skills ~/.config/opencode/skill
+```
+
+### Usage
+
+OpenCode will automatically apply relevant skills when you ask questions:
+
+```text
+"Implement a data layer for the movies feature"
+```
+
+## Google Gemini Code Assist
+
+For Google Gemini in Android Studio, you can reference skills explicitly:
+
+```text
+"Using the patterns in .github/skills/android-architecture/SKILL.md, 
+refactor this app to use Clean Architecture"
+```
+
+## Common Usage Patterns
+
+### Feature Development
+
+When building a new feature, ask your assistant to apply multiple skills:
+
+```text
+"Create a new 'Articles' feature module with:
+- Clean Architecture (UI, Domain, Data layers)
+- Compose UI with proper state hoisting
+- ViewModel using StateFlow
+- Repository with offline-first sync
+- Full accessibility support
+- Unit and screenshot tests"
+```
+
+This will apply:
+- `android-architecture`
+- `compose-ui`
+- `android-viewmodel`
+- `android-data-layer`
+- `android-accessibility`
+- `android-testing`
+
+### Code Review & Refactoring
+
+Ask your assistant to audit existing code:
+
+<CodeGroup>
+```text Performance Audit
+"Review this Composable for performance issues and apply fixes"
+```
+
+```text Architecture Review
+"Check if this module follows Clean Architecture principles"
+```
+
+```text Accessibility Audit
+"Audit all screens in this feature for accessibility compliance"
+```
+</CodeGroup>
+
+### Migration Tasks
+
+Use skills for large-scale migrations:
+
+```text
+"Migrate this XML layout to Jetpack Compose following best practices"
+```
+
+This applies the `xml-to-compose-migration` skill with comprehensive mapping tables.
+
+### Build Optimization
+
+```text
+"Analyze my Gradle build performance and suggest optimizations"
+```
+
+This applies the `gradle-build-performance` skill with 12 optimization patterns.
+
+## Manual Skill Loading
+
+For any context-aware LLM (ChatGPT, Claude, etc.), you can manually load a skill:
+
+<Steps>
+  <Step title="Copy the skill content">
+    Open the relevant `SKILL.md` file and copy its contents.
+  </Step>
+  
+  <Step title="Paste into your prompt">
+    ```text
+    "Here are the guidelines for Android ViewModels:
+    
+    [paste SKILL.md content]
+    
+    Now, refactor this ViewModel following these guidelines:
+    
+    [paste your code]
+    "
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Manual loading is less efficient than automatic discovery. Use it only when your AI assistant doesn't support automatic skill detection.
+</Warning>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Be Specific" icon="crosshairs">
+    Reference specific skills or patterns when asking questions: "following the Hilt dependency injection patterns" instead of just "add DI".
+  </Card>
+  
+  <Card title="Combine Skills" icon="layer-group">
+    Complex features benefit from multiple skills. Ask your assistant to apply several skills at once for comprehensive implementation.
+  </Card>
+  
+  <Card title="Iterate" icon="rotate">
+    Start with high-level requests, then refine with specific skill references: "Now optimize the Compose performance" after initial implementation.
+  </Card>
+  
+  <Card title="Validate" icon="check-double">
+    Review the generated code to ensure it follows the skill guidelines. AI assistants are powerful but not perfect.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Skills Not Being Applied
+
+<Steps>
+  <Step title="Check directory location">
+    Verify skills are in the correct location for your AI assistant:
+    - GitHub Copilot / Cursor: `.github/skills/`
+    - Claude: `.claude/skills/`
+    - OpenCode: `.opencode/skill/` or `~/.config/opencode/skill/`
+  </Step>
+  
+  <Step title="Verify SKILL.md format">
+    Ensure each skill has proper frontmatter:
+    ```markdown
+    ---
+    name: skill-name
+    description: What this skill does
+    ---
+    ```
+  </Step>
+  
+  <Step title="Reload your IDE">
+    Reload your window or restart your IDE to refresh the skill index.
+  </Step>
+  
+  <Step title="Reference explicitly">
+    If automatic detection fails, reference the skill explicitly:
+    ```text
+    "Using .github/skills/android-architecture/SKILL.md, create..."
+    ```
+  </Step>
+</Steps>
+
+### Inconsistent Results
+
+<Note>
+  AI assistants may interpret skills differently based on context. For critical patterns, consider adding code examples or templates directly in the skill file.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Browse Skills" icon="book-open" href="/introduction">
+    Explore all available skills and their detailed documentation
+  </Card>
+  
+  <Card title="Create Custom Skills" icon="wand-magic-sparkles" href="/resources/creating-custom-skills">
+    Learn how to create your own skills for team-specific patterns
+  </Card>
+</CardGroup>

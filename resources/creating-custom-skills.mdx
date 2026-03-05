@@ -1,0 +1,281 @@
+---
+title: Creating Custom Skills
+description: Learn how to create your own Agent Skills to extend AI coding assistants with domain-specific knowledge
+---
+
+Agent Skills are a powerful way to package expertise, instructions, and best practices that AI agents can automatically use when working on relevant tasks. This guide will walk you through creating your own custom skills.
+
+## What is an Agent Skill?
+
+An **Agent Skill** is a structured markdown file (`SKILL.md`) that contains:
+- **Metadata** (name, description) in YAML frontmatter
+- **Instructions** that guide the AI agent's behavior
+- **Best practices** and architectural patterns
+- **Checklists** and workflows
+- **Code examples** and templates
+
+When an agent detects you're working on a task matching a skill's description, it automatically loads those instructions to ensure consistency and accuracy.
+
+## Skill Structure
+
+Every Agent Skill follows this standard structure:
+
+```
+.github/skills/
+└── my-custom-skill/
+    └── SKILL.md
+```
+
+### Required Frontmatter
+
+The `SKILL.md` file must begin with YAML frontmatter containing two required fields:
+
+```yaml
+---
+name: my-custom-skill
+description: Brief description of what this skill does and when to use it
+---
+```
+
+- **name**: A unique identifier using kebab-case (lowercase with hyphens)
+- **description**: A clear explanation of the skill's purpose and when the agent should load it
+
+## Creating Your First Skill
+
+<Steps>
+  <Step title="Create the skill directory">
+    Create a new folder in `.github/skills/` with a descriptive kebab-case name:
+    
+    ```bash
+    mkdir -p .github/skills/my-custom-skill
+    ```
+  </Step>
+
+  <Step title="Create the SKILL.md file">
+    Inside your skill folder, create a `SKILL.md` file:
+    
+    ```bash
+    touch .github/skills/my-custom-skill/SKILL.md
+    ```
+  </Step>
+
+  <Step title="Add the frontmatter">
+    Start your `SKILL.md` file with the required frontmatter:
+    
+    ```markdown
+    ---
+    name: my-custom-skill
+    description: Expert guidance on [your domain]. Use this when working on [specific scenarios].
+    ---
+    ```
+    
+    Make the description specific about when the agent should load this skill.
+  </Step>
+
+  <Step title="Write the instructions">
+    After the frontmatter, add a title and your instructions:
+    
+    ```markdown
+    # My Custom Skill
+    
+    ## Instructions
+    
+    When working on [specific task], follow these guidelines:
+    
+    ### 1. First Principle
+    - Rule or pattern
+    - Explanation
+    - Code example
+    
+    ### 2. Second Principle
+    ...
+    ```
+  </Step>
+
+  <Step title="Add checklists and examples">
+    Include actionable checklists and concrete examples. Use checklists to guide implementation and provide real code snippets that demonstrate the patterns.
+  </Step>
+
+  <Step title="Test your skill">
+    Restart your AI agent or reload your workspace, then ask a question related to your skill's domain to verify it gets loaded automatically.
+  </Step>
+</Steps>
+
+## Example Skill Template
+
+Here's a complete example of a well-structured skill:
+
+```markdown
+---
+name: android-architecture
+description: Expert guidance on setting up and maintaining a modern Android application architecture using Clean Architecture and Hilt. Use this when asked about project structure, module setup, or dependency injection.
+---
+
+# Android Modern Architecture & Modularization
+
+## Instructions
+
+When designing or refactoring an Android application, adhere to the **Guide to App Architecture** and **Clean Architecture** principles.
+
+### 1. High-Level Layers
+Structure the application into three primary layers. Dependencies must strictly flow **inwards** (or downwards) to the core logic.
+
+*   **UI Layer (Presentation)**:
+    *   **Responsibility**: Displaying data and handling user interactions.
+    *   **Components**: Activities, Fragments, Composables, ViewModels.
+    *   **Dependencies**: Depends on the Domain Layer (or Data Layer if simple). **Never** depends on the Data Layer implementation details directly.
+
+*   **Domain Layer (Business Logic) [Optional but Recommended]**:
+    *   **Responsibility**: Encapsulating complex business rules and reuse.
+    *   **Components**: Use Cases (e.g., `GetLatestNewsUseCase`), Domain Models (pure Kotlin data classes).
+    *   **Pure Kotlin**: Must NOT contain any Android framework dependencies (no `android.*` imports).
+    *   **Dependencies**: Depends on Repository Interfaces.
+
+### 2. Dependency Injection with Hilt
+Use **Hilt** for all dependency injection.
+
+*   **@HiltAndroidApp**: Annotate the `Application` class.
+*   **@AndroidEntryPoint**: Annotate Activities and Fragments.
+*   **@HiltViewModel**: Annotate ViewModels; use standard `constructor` injection.
+
+### 3. Checklist for implementation
+- [ ] Ensure `Domain` layer has no Android dependencies.
+- [ ] Repositories should default to main-safe suspend functions.
+- [ ] ViewModels should interact with the UI layer via `StateFlow`.
+```
+
+## Best Practices
+
+### Write Clear Descriptions
+
+Your skill description is crucial for automatic loading. Make it specific:
+
+<CodeGroup>
+```yaml Good
+---
+name: compose-ui
+description: Best practices for building UI with Jetpack Compose, focusing on state hoisting, detailed performance optimizations, and theming. Use this when writing or refactoring Composable functions.
+---
+```
+
+```yaml Too Vague
+---
+name: compose-ui
+description: Help with Compose UI
+---
+```
+</CodeGroup>
+
+### Structure Instructions Logically
+
+- Use numbered sections for sequential steps or principles
+- Include subsections for different aspects
+- Add checklists for implementation verification
+- Provide code examples for clarity
+
+### Focus on "Why" Not Just "What"
+
+Explain the reasoning behind patterns:
+
+```markdown
+### State Hoisting
+*   **Pattern**: Make Composables stateless whenever possible.
+*   **Benefit**: Decouples the UI from state storage, making it easier to preview and test.
+*   **Example**: Pass `value` and `onValueChange` as parameters instead of using internal state.
+```
+
+### Keep Skills Focused
+
+Each skill should cover one domain or concern:
+- **Good**: Separate skills for "Compose UI", "Compose Navigation", "Compose Performance"
+- **Bad**: One giant "Everything Compose" skill
+
+### Use Consistent Formatting
+
+- Use `**Bold**` for key terms and components
+- Use `code` for class names, functions, and file paths
+- Use code blocks with language tags for examples
+- Use bullet points for lists of related items
+- Use numbered lists for sequential steps
+
+### Include Practical Examples
+
+Provide real code snippets that demonstrate the patterns:
+
+```markdown
+### Example: Repository Pattern
+```kotlin
+interface NewsRepository {
+    suspend fun getLatestNews(): Result<List<News>>
+}
+
+@Singleton
+class NewsRepositoryImpl @Inject constructor(
+    private val remoteDataSource: NewsRemoteDataSource,
+    private val localDataSource: NewsLocalDataSource
+) : NewsRepository {
+    override suspend fun getLatestNews(): Result<List<News>> {
+        // Implementation
+    }
+}
+```
+```
+
+## Advanced Features
+
+### Bundle Supporting Files
+
+You can include additional resources alongside your `SKILL.md`:
+
+```
+.github/skills/my-custom-skill/
+├── SKILL.md
+├── templates/
+│   └── example-template.kt
+└── references/
+    └── architecture-diagram.md
+```
+
+Reference these files in your skill instructions:
+
+```markdown
+See the [example template](./templates/example-template.kt) for a complete implementation.
+```
+
+### Cross-Reference Other Skills
+
+Mention related skills to help agents load complementary knowledge:
+
+```markdown
+For state management in ViewModels, see the `android-viewmodel` skill.
+```
+
+### Environment-Specific Considerations
+
+Different AI platforms may discover skills in different locations:
+
+- **GitHub Copilot / VS Code**: `.github/skills/`
+- **Claude / Anthropic**: `.claude/skills/`
+- **OpenCode**: `.opencode/skill/` or `~/.config/opencode/skill/` for global skills
+
+Consider providing setup instructions for multiple environments in your repository's README.
+
+## Testing Your Skill
+
+1. **Restart your agent**: After creating a skill, reload your workspace or restart your AI coding assistant
+2. **Ask relevant questions**: Try asking questions that match your skill's description
+3. **Verify loading**: Check if the agent's responses follow your skill's instructions
+4. **Iterate**: Refine the description and instructions based on how well the agent applies them
+
+## Sharing Your Skills
+
+Once you've created useful skills:
+
+1. **Document them**: Add a README explaining what each skill does
+2. **Share examples**: Provide sample usage scenarios
+3. **Contribute**: Consider contributing skills back to community repositories
+4. **Version control**: Track your skills in git alongside your project
+
+<Note>
+Skills are most effective when they're specific, actionable, and focused on a single domain or concern. Start small and expand based on real usage patterns.
+</Note>

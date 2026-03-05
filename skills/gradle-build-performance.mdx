@@ -1,0 +1,499 @@
+---
+title: Gradle Build Performance
+description: Debug and optimize Android/Gradle build performance, analyze build scans, and eliminate compilation bottlenecks
+---
+
+## Overview
+
+The **Gradle Build Performance** skill helps you diagnose and optimize slow Android builds, from analyzing build scans to implementing targeted optimizations for configuration, execution, and dependency resolution.
+
+**Use this skill when:**
+- Build times are slow (clean or incremental)
+- Investigating build performance regressions
+- Analyzing Gradle Build Scans
+- Identifying configuration vs execution bottlenecks
+- Optimizing CI/CD build times
+- Enabling Gradle Configuration Cache
+- Reducing unnecessary recompilation
+- Debugging kapt/KSP annotation processing
+
+## Performance Issues Addressed
+
+- Slow configuration phase from eager task creation
+- Long compilation times from non-incremental builds
+- Cache misses causing task re-execution
+- Expensive annotation processing (kapt)
+- Inefficient dependency resolution
+- Suboptimal JVM memory allocation
+- Missing build cache configuration
+- Configuration-time I/O operations
+
+## Optimization Workflow
+
+<Tip>
+**Apply ONE optimization at a time** and measure the impact. Batching changes makes it impossible to identify what actually helped.
+</Tip>
+
+1. **Measure Baseline** — Record clean build + incremental build times
+2. **Generate Build Scan** — `./gradlew assembleDebug --scan`
+3. **Identify Phase** — Configuration? Execution? Dependency resolution?
+4. **Apply ONE optimization** — Don't batch changes
+5. **Measure Improvement** — Compare against baseline
+6. **Verify in Build Scan** — Visual confirmation
+
+## Identifying Performance Problems
+
+### Generate Build Scan
+
+Build scans provide comprehensive performance data:
+
+```bash
+./gradlew assembleDebug --scan
+```
+
+After the build completes, you'll receive a URL to view detailed performance breakdown, including:
+- Build timeline (configuration vs execution)
+- Task execution times
+- Dependency resolution time
+- Cache hit/miss rates
+- Plugin impact
+
+### Profile Locally
+
+Generate local HTML report:
+
+```bash
+./gradlew assembleDebug --profile
+# Opens report in build/reports/profile/
+```
+
+### Build Timing Summary
+
+```bash
+# View task execution times
+./gradlew assembleDebug --info | grep -E "^\:.*"
+
+# Or in Android Studio:
+# Build > Analyze APK Build
+```
+
+### Understanding Build Phases
+
+| Phase | What Happens | Common Issues |
+|-------|--------------|---------------|
+| **Initialization** | `settings.gradle.kts` evaluated | Too many `include()` statements |
+| **Configuration** | All `build.gradle.kts` evaluated | Expensive plugins, eager task creation |
+| **Execution** | Tasks run based on inputs/outputs | Cache misses, non-incremental tasks |
+
+**Identify the bottleneck in Build Scan:**
+```
+Build scan → Performance → Build timeline
+```
+
+- **Long configuration phase** → Focus on plugin and buildscript optimization
+- **Long execution phase** → Focus on task caching and parallelization
+- **Dependency resolution slow** → Focus on repository configuration
+
+## Core Optimizations
+
+### 1. Enable Configuration Cache
+
+Caches configuration phase across builds (AGP 8.0+):
+
+```properties
+# gradle.properties
+org.gradle.configuration-cache=true
+org.gradle.configuration-cache.problems=warn
+```
+
+**Impact:** Can reduce configuration time by 80-95% on subsequent builds.
+
+<Warning>
+Some plugins may not be compatible with configuration cache. Use `problems=warn` initially to identify issues.
+</Warning>
+
+### 2. Enable Build Cache
+
+Reuses task outputs across builds and machines:
+
+```properties
+# gradle.properties
+org.gradle.caching=true
+```
+
+**Impact:** Incremental builds can be 2-10x faster depending on cache hit rate.
+
+### 3. Enable Parallel Execution
+
+Build independent modules simultaneously:
+
+```properties
+# gradle.properties
+org.gradle.parallel=true
+```
+
+**Impact:** Reduces build time by 20-50% for multi-module projects.
+
+### 4. Increase JVM Heap
+
+Allocate more memory for large projects:
+
+```properties
+# gradle.properties
+org.gradle.jvmargs=-Xmx4g -XX:+UseParallelGC
+```
+
+**Guideline:**
+- Small projects (&lt;5 modules): 2GB
+- Medium projects (5-20 modules): 4GB
+- Large projects (>20 modules): 6-8GB
+
+### 5. Use Non-Transitive R Classes
+
+Reduces R class size and compilation (AGP 8.0+ default):
+
+```properties
+# gradle.properties
+android.nonTransitiveRClass=true
+```
+
+**Impact:** Reduces R class compilation time by 30-60%.
+
+### 6. Migrate kapt to KSP
+
+KSP is 2x faster than kapt for Kotlin annotation processing:
+
+```kotlin
+// Before (slow)
+plugins {
+    id("kotlin-kapt")
+}
+
+dependencies {
+    kapt("com.google.dagger:hilt-compiler:2.51.1")
+}
+
+// After (fast)
+plugins {
+    id("com.google.devtools.ksp") version "1.9.20-1.0.14"
+}
+
+dependencies {
+    ksp("com.google.dagger:hilt-compiler:2.51.1")
+}
+```
+
+<Tip>
+Check library documentation for KSP support. Most major libraries (Room, Hilt, Moshi) now support KSP.
+</Tip>
+
+## Advanced Optimizations
+
+### 7. Avoid Dynamic Dependencies
+
+Pin dependency versions to avoid resolution on every build:
+
+```kotlin
+// ❌ BAD: Forces resolution every build
+dependencies {
+    implementation("com.example:lib:+")
+    implementation("com.example:lib:1.0.+")
+    implementation("com.example:lib:latest.release")
+}
+
+// ✅ GOOD: Fixed version
+dependencies {
+    implementation("com.example:lib:1.2.3")
+}
+```
+
+### 8. Optimize Repository Order
+
+Put most-used repositories first:
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()       // First: Android dependencies
+        mavenCentral() // Second: Most libraries
+        // Third-party repos last
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+### 9. Use Lazy Task Configuration
+
+Avoid eager task creation:
+
+```kotlin
+// ❌ BAD: Eagerly configured (runs during configuration)
+tasks.create("myTask") {
+    doLast {
+        println("Hello")
+    }
+}
+
+// ✅ GOOD: Lazily configured (only when needed)
+tasks.register("myTask") {
+    doLast {
+        println("Hello")
+    }
+}
+```
+
+### 10. Avoid Configuration-Time I/O
+
+Defer file operations to execution phase:
+
+```kotlin
+// ❌ BAD: Runs during configuration (every build)
+val version = file("version.txt").readText()
+
+android {
+    defaultConfig {
+        versionName = version
+    }
+}
+
+// ✅ GOOD: Defer to execution phase
+val versionProvider = providers.fileContents(file("version.txt")).asText
+
+android {
+    defaultConfig {
+        versionName = versionProvider.get()
+    }
+}
+```
+
+### 11. Enable Incremental Annotation Processing
+
+If you must use kapt:
+
+```properties
+# gradle.properties
+kapt.incremental.apt=true
+kapt.use.worker.api=true
+```
+
+### 12. Use Composite Builds for Local Modules
+
+Faster than `project()` dependencies for large monorepos:
+
+```kotlin
+// settings.gradle.kts
+includeBuild("shared-library") {
+    dependencySubstitution {
+        substitute(module("com.example:shared")).using(project(":"))
+    }
+}
+```
+
+## Troubleshooting Common Bottlenecks
+
+### Slow Configuration Phase
+
+**Symptoms:** Build scan shows long "Configuring build" time
+
+| Cause | Fix |
+|-------|-----|
+| Eager task creation | Use `tasks.register()` instead of `tasks.create()` |
+| buildSrc with many dependencies | Migrate to Convention Plugins with `includeBuild` |
+| File I/O in build scripts | Use `providers.fileContents()` |
+| Network calls in plugins | Cache results or use offline mode |
+
+### Slow Compilation
+
+**Symptoms:** `:app:compileDebugKotlin` takes too long
+
+| Cause | Fix |
+|-------|-----|
+| Non-incremental changes | Avoid `build.gradle.kts` changes that invalidate cache |
+| Large modules | Break into smaller feature modules |
+| Excessive kapt usage | Migrate to KSP |
+| Kotlin compiler memory | Increase `kotlin.daemon.jvmargs` |
+
+**Kotlin compiler JVM args:**
+```properties
+# gradle.properties
+kotlin.daemon.jvmargs=-Xmx2g -XX:+UseParallelGC
+```
+
+### Cache Misses
+
+**Symptoms:** Tasks always rerun despite no changes
+
+| Cause | Fix |
+|-------|-----|
+| Unstable task inputs | Use `@PathSensitive`, `@NormalizeLineEndings` |
+| Absolute paths in outputs | Use relative paths |
+| Missing `@CacheableTask` | Add annotation to custom tasks |
+| Different JDK versions | Standardize JDK across environments |
+
+**Example cacheable task:**
+```kotlin
+@CacheableTask
+abstract class MyTask : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val inputFile: RegularFileProperty
+    
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
+    
+    @TaskAction
+    fun execute() {
+        // Task logic
+    }
+}
+```
+
+## CI/CD Optimizations
+
+### Remote Build Cache
+
+Share build cache across CI agents:
+
+```kotlin
+// settings.gradle.kts
+buildCache {
+    local {
+        isEnabled = true
+    }
+    remote<HttpBuildCache> {
+        url = uri("https://cache.example.com/")
+        isPush = System.getenv("CI") == "true"
+        credentials {
+            username = System.getenv("CACHE_USER")
+            password = System.getenv("CACHE_PASS")
+        }
+    }
+}
+```
+
+### Gradle Enterprise / Develocity
+
+Advanced build analytics and distributed build cache:
+
+```kotlin
+// settings.gradle.kts
+plugins {
+    id("com.gradle.develocity") version "3.17"
+}
+
+develocity {
+    buildScan {
+        termsOfUseUrl.set("https://gradle.com/help/legal-terms-of-use")
+        termsOfUseAgree.set("yes")
+        publishing.onlyIf { System.getenv("CI") != null }
+    }
+}
+```
+
+### Skip Unnecessary Tasks in CI
+
+```bash
+# Skip tests for UI-only changes
+./gradlew assembleDebug -x test -x lint
+
+# Only run affected module tests
+./gradlew :feature:login:test
+
+# Parallel test execution
+./gradlew test --parallel --max-workers=4
+```
+
+## Measurement & Verification
+
+### Baseline Template
+
+```markdown
+## Build Performance Baseline
+
+### Before Optimization
+- Clean build: 3m 42s
+- Incremental build (no changes): 28s
+- Incremental build (single file): 45s
+- Configuration time: 18s
+- Cache hit rate: 12%
+
+### After Optimization
+- Clean build: 2m 8s (42% faster)
+- Incremental build (no changes): 4s (86% faster)
+- Incremental build (single file): 12s (73% faster)
+- Configuration time: 2s (89% faster)
+- Cache hit rate: 87%
+
+### Changes Applied
+- Enabled configuration cache
+- Enabled build cache
+- Migrated Hilt from kapt to KSP
+- Increased JVM heap to 4GB
+- Enabled parallel execution
+```
+
+### Verification Checklist
+
+After optimizations, verify:
+
+- [ ] Configuration cache enabled and working
+- [ ] Build cache hit rate > 80% (check build scan)
+- [ ] No dynamic dependency versions
+- [ ] KSP used instead of kapt where possible
+- [ ] Parallel execution enabled
+- [ ] JVM memory tuned appropriately
+- [ ] CI remote cache configured
+- [ ] No configuration-time I/O
+
+## Android Studio Settings
+
+### File → Settings → Build → Gradle
+
+- **Gradle JDK**: Match your project's JDK (e.g., JDK 17)
+- **Build and run using**: Gradle (not IntelliJ)
+- **Run tests using**: Gradle
+
+### File → Settings → Build → Compiler
+
+- **Compile independent modules in parallel**: ✅ Enabled
+- **Configure on demand**: ❌ Disabled (deprecated)
+
+## Best Practices
+
+<Tip>
+**Monitor build scan trends** over time to catch performance regressions early.
+</Tip>
+
+1. **Modularize by feature** — Smaller modules build faster and enable better caching
+2. **Use version catalogs** — Centralize dependency management
+   ```kotlin
+   // gradle/libs.versions.toml
+   [versions]
+   hilt = "2.51.1"
+   
+   [libraries]
+   hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+   ```
+
+3. **Profile regularly** — Run `--scan` on every major change
+4. **Document optimizations** — Keep a changelog of what worked
+5. **Test on CI** — What works locally may not work in CI
+
+<Warning>
+Never commit `gradle.properties` with machine-specific paths or credentials. Use environment variables or local.properties instead.
+</Warning>
+
+## Related Skills
+
+- [Compose Performance Audit](/skills/compose-performance-audit) — Optimize runtime UI performance
+- [Android Testing](/skills/android-testing) — Verify build improvements
+
+## References
+
+- [Optimize Build Speed](https://developer.android.com/build/optimize-your-build)
+- [Gradle Configuration Cache](https://docs.gradle.org/current/userguide/configuration_cache.html)
+- [Gradle Build Cache](https://docs.gradle.org/current/userguide/build_cache.html)
+- [Migrate from kapt to KSP](https://developer.android.com/build/migrate-to-ksp)
+- [Gradle Build Scans](https://scans.gradle.com/)

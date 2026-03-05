@@ -1,0 +1,598 @@
+---
+title: 'Android Emulator Automation'
+description: 'Production-ready scripts for Android app testing, building, and semantic UI navigation'
+---
+
+## Overview
+
+The Android Emulator Skill provides a comprehensive suite of Python and Bash scripts for automating Android app testing, building, and interaction. Instead of relying on brittle pixel coordinates, it uses accessibility-driven navigation to interact with UI elements semantically (by text, resource ID, or content description).
+
+This skill is optimized for AI agents with minimal token output and structured JSON responses.
+
+## When to Use This Skill
+
+Invoke this skill when you need to:
+
+- Build and test Android apps programmatically
+- Launch and interact with Android apps without manual tapping
+- Navigate UI elements semantically (by text, ID, or class)
+- Monitor app logs in real-time with intelligent filtering
+- Perform automated testing workflows
+- Manage emulator lifecycle (boot, shutdown, list AVDs)
+- Debug app behavior through UI hierarchy inspection
+
+## Quick Start
+
+Verify your environment and launch an app:
+
+```bash
+# 1. Check that ADB, emulator, and SDK are properly configured
+bash scripts/emu_health_check.sh
+
+# 2. Launch the app
+python scripts/app_launcher.py --launch com.example.myapp
+
+# 3. Map the current screen to see all interactive elements
+python scripts/screen_mapper.py
+
+# 4. Tap a button by its text
+python scripts/navigator.py --find-text "Login" --tap
+
+# 5. Enter text into a field
+python scripts/navigator.py --find-type EditText --enter-text "user@example.com"
+```
+
+All scripts support `--help` for detailed options and `--json` for machine-readable output.
+
+## Script Reference
+
+### Build and Development
+
+#### `build_and_test.py`
+
+Wrapper around Gradle for building projects, running tests, and parsing results.
+
+**Usage:**
+
+<CodeGroup>
+```bash Assemble Debug APK
+python scripts/build_and_test.py --task assembleDebug
+```
+
+```bash Run Unit Tests
+python scripts/build_and_test.py --task test --json
+```
+
+```bash Install APK
+python scripts/build_and_test.py --task installDebug
+```
+
+```bash Connected Android Tests
+python scripts/build_and_test.py --task connectedCheck
+```
+</CodeGroup>
+
+**Key Features:**
+- Parses build errors and test failures
+- Supports `--clean` for clean builds
+- JSON output for automated workflows
+- Detects Gradle wrapper automatically
+
+#### `log_monitor.py`
+
+Real-time log monitoring with intelligent filtering and deduplication.
+
+**Usage:**
+
+<CodeGroup>
+```bash Monitor Specific Package
+python scripts/log_monitor.py --package com.example.myapp
+```
+
+```bash Filter by Tag
+python scripts/log_monitor.py --tag "NetworkManager" --priority E
+```
+
+```bash Time-Limited Monitoring
+python scripts/log_monitor.py --package com.example.myapp --duration 30
+```
+
+```bash JSON Output
+python scripts/log_monitor.py --package com.example.myapp --json
+```
+</CodeGroup>
+
+**Key Features:**
+- Filters by package, tag, PID, or priority (V, D, I, W, E, F)
+- Deduplicates repeated log messages
+- Optional time-limited monitoring with `--duration`
+- Structured JSON output for parsing
+
+<Warning>
+Log monitoring can generate significant output. Use `--priority E` or `--priority W` to focus on errors and warnings during debugging.
+</Warning>
+
+### Navigation and Interaction
+
+#### `screen_mapper.py`
+
+Analyzes the current screen and lists all interactive elements.
+
+**Usage:**
+
+<CodeGroup>
+```bash List Interactive Elements
+python scripts/screen_mapper.py
+```
+
+```bash Verbose Output
+python scripts/screen_mapper.py --verbose
+```
+
+```bash JSON Output
+python scripts/screen_mapper.py --json
+```
+</CodeGroup>
+
+**Output Example:**
+
+```
+=== Screen Map ===
+[Button] "Login" (resource-id: com.example.myapp:id/login_button)
+[EditText] "Email" (resource-id: com.example.myapp:id/email_field)
+[EditText] "Password" (resource-id: com.example.myapp:id/password_field)
+[TextView] "Forgot password?" (clickable)
+```
+
+**Key Features:**
+- Parses UI hierarchy from `uiautomator dump`
+- Identifies buttons, text fields, images, and clickable elements
+- Shows resource IDs, text content, and content descriptions
+- Foundation for semantic navigation
+
+#### `navigator.py`
+
+Finds and interacts with UI elements semantically.
+
+**Usage:**
+
+<CodeGroup>
+```bash Find and Tap by Text
+python scripts/navigator.py --find-text "Login" --tap
+```
+
+```bash Find by Resource ID
+python scripts/navigator.py --find-id "com.example.myapp:id/submit_button" --tap
+```
+
+```bash Find EditText and Enter Text
+python scripts/navigator.py --find-type EditText --enter-text "test@example.com"
+```
+
+```bash Fuzzy Text Matching
+python scripts/navigator.py --find-text "submit" --tap  # Matches "Submit", "submit", "SUBMIT"
+```
+</CodeGroup>
+
+**Key Features:**
+- Fuzzy text matching (case-insensitive, partial matches)
+- Find by resource ID, class name, or text content
+- Tap, long-press, and text entry actions
+- JSON output with element coordinates
+
+<Warning>
+If multiple elements match your query, `navigator.py` will target the first match. Use `--find-id` for precise targeting when text matching is ambiguous.
+</Warning>
+
+#### `gesture.py`
+
+Performs swipes, scrolls, and other touch gestures.
+
+**Usage:**
+
+<CodeGroup>
+```bash Swipe Up
+python scripts/gesture.py --swipe up
+```
+
+```bash Swipe Right
+python scripts/gesture.py --swipe right
+```
+
+```bash Scroll Down
+python scripts/gesture.py --scroll down --duration 500
+```
+
+```bash Custom Swipe Duration
+python scripts/gesture.py --swipe left --duration 1000
+```
+</CodeGroup>
+
+**Key Features:**
+- Directional swipes (up, down, left, right)
+- Customizable gesture duration
+- Scroll actions for lists and scrollable content
+- JSON output with gesture coordinates
+
+#### `keyboard.py`
+
+Sends key events and hardware button presses.
+
+**Usage:**
+
+<CodeGroup>
+```bash Press Back Button
+python scripts/keyboard.py --key BACK
+```
+
+```bash Press Home Button
+python scripts/keyboard.py --key HOME
+```
+
+```bash Press Enter
+python scripts/keyboard.py --key ENTER
+```
+
+```bash Type Text via ADB
+python scripts/keyboard.py --text "hello world"
+```
+</CodeGroup>
+
+**Supported Keys:**
+- `HOME`, `BACK`, `ENTER`, `TAB`, `SPACE`
+- `VOLUME_UP`, `VOLUME_DOWN`, `POWER`
+- `MENU`, `SEARCH`, `CAMERA`
+
+#### `app_launcher.py`
+
+Manages app lifecycle: launch, terminate, install, and uninstall.
+
+**Usage:**
+
+<CodeGroup>
+```bash Launch App
+python scripts/app_launcher.py --launch com.example.myapp
+```
+
+```bash Terminate App
+python scripts/app_launcher.py --terminate com.example.myapp
+```
+
+```bash Install APK
+python scripts/app_launcher.py --install /path/to/app.apk
+```
+
+```bash Uninstall App
+python scripts/app_launcher.py --uninstall com.example.myapp
+```
+
+```bash List Installed Packages
+python scripts/app_launcher.py --list
+```
+</CodeGroup>
+
+**Key Features:**
+- Launch apps via `adb shell am start`
+- Force-stop apps to reset state
+- Install/uninstall APKs programmatically
+- List all installed packages with `--list`
+
+### Emulator Lifecycle Management
+
+#### `emulator_manage.py`
+
+Manages Android Virtual Devices (AVDs).
+
+**Usage:**
+
+<CodeGroup>
+```bash List Available AVDs
+python scripts/emulator_manage.py --list
+```
+
+```bash Boot Emulator
+python scripts/emulator_manage.py --boot Pixel_6_API_34
+```
+
+```bash Shutdown Emulator
+python scripts/emulator_manage.py --shutdown
+```
+
+```bash JSON Output
+python scripts/emulator_manage.py --list --json
+```
+</CodeGroup>
+
+**Key Features:**
+- Lists all available AVDs with details
+- Boots emulators in headless or GUI mode
+- Gracefully shuts down running emulators
+- JSON output for scripting
+
+#### `emu_health_check.sh`
+
+Verifies that the Android development environment is properly configured.
+
+**Usage:**
+
+```bash
+bash scripts/emu_health_check.sh
+```
+
+**Checks Performed:**
+- ADB installation and version
+- Android Emulator availability
+- Java/OpenJDK installation
+- Gradle wrapper presence
+- `ANDROID_HOME` environment variable
+- Connected devices and emulators
+
+**Output Example:**
+
+```
+[✓] ADB found: Android Debug Bridge version 1.0.41
+[✓] Emulator found: Android Emulator version 34.1.9
+[✓] Java found: openjdk 17.0.8
+[✓] Gradle found: Gradle 8.2
+[✓] ANDROID_HOME set: /Users/user/Library/Android/sdk
+[✓] Connected devices: emulator-5554
+```
+
+## Common Patterns
+
+### Automated Login Flow
+
+```bash
+#!/bin/bash
+# Launch app
+python scripts/app_launcher.py --launch com.example.myapp
+
+# Wait for app to load
+sleep 2
+
+# Enter email
+python scripts/navigator.py --find-id "com.example.myapp:id/email" --enter-text "test@example.com"
+
+# Enter password
+python scripts/navigator.py --find-id "com.example.myapp:id/password" --enter-text "password123"
+
+# Tap login button
+python scripts/navigator.py --find-text "Login" --tap
+
+# Monitor logs for errors
+python scripts/log_monitor.py --package com.example.myapp --priority E --duration 10
+```
+
+### Build and Install Workflow
+
+```bash
+#!/bin/bash
+# Clean and build debug APK
+python scripts/build_and_test.py --clean --task assembleDebug
+
+# Install on connected device
+python scripts/build_and_test.py --task installDebug
+
+# Launch app
+python scripts/app_launcher.py --launch com.example.myapp
+```
+
+### UI Testing Workflow
+
+```bash
+#!/bin/bash
+# Map current screen
+python scripts/screen_mapper.py --json > screen_map.json
+
+# Find button by text and tap
+python scripts/navigator.py --find-text "Next" --tap
+
+# Verify screen changed by mapping again
+python scripts/screen_mapper.py --json > screen_map_after.json
+
+# Compare screen maps
+diff screen_map.json screen_map_after.json
+```
+
+## Auto-Device Detection
+
+All scripts automatically target the single connected device or emulator. If multiple devices are connected, specify the target with:
+
+```bash
+python scripts/navigator.py -s emulator-5554 --find-text "Login" --tap
+```
+
+## Output Formats
+
+Scripts default to concise human-readable output. Use `--json` for machine-readable output:
+
+<CodeGroup>
+```json screen_mapper.py --json
+{
+  "elements": [
+    {
+      "type": "Button",
+      "text": "Login",
+      "resource_id": "com.example.myapp:id/login_button",
+      "bounds": "[100,200][300,250]"
+    },
+    {
+      "type": "EditText",
+      "text": "Email",
+      "resource_id": "com.example.myapp:id/email_field",
+      "bounds": "[100,150][600,200]"
+    }
+  ]
+}
+```
+
+```json log_monitor.py --json
+{
+  "logs": [
+    {
+      "timestamp": "2025-03-05 10:15:23.456",
+      "priority": "E",
+      "tag": "NetworkManager",
+      "message": "Failed to connect to server"
+    }
+  ]
+}
+```
+</CodeGroup>
+
+## Key Design Principles
+
+### Semantic Navigation
+
+Find elements by **meaning**, not **position**:
+
+- **Text content**: "Login", "Submit", "Next"
+- **Resource IDs**: `com.example.myapp:id/login_button`
+- **Content descriptions**: Accessibility labels
+- **Element types**: `Button`, `EditText`, `TextView`
+
+### Token Efficiency
+
+Minimize output verbosity for AI agents:
+
+- Concise default output
+- Optional verbose mode with `--verbose`
+- Structured JSON with `--json` for parsing
+
+### Zero Configuration
+
+Works with standard Android SDK installations:
+
+- Detects `ANDROID_HOME` automatically
+- Uses `adb` from `PATH` or SDK
+- Finds Gradle wrapper in project root
+
+## Requirements
+
+- **Android SDK Platform-Tools** (adb, fastboot)
+- **Android Emulator**
+- **Java / OpenJDK** (for Gradle)
+- **Python 3** (for scripts)
+
+Verify setup with:
+
+```bash
+bash scripts/emu_health_check.sh
+```
+
+## Troubleshooting
+
+### Issue: "No devices detected"
+
+**Cause**: No emulator or device connected
+
+**Fix**: Start emulator or connect physical device:
+
+```bash
+python scripts/emulator_manage.py --boot Pixel_6_API_34
+adb devices
+```
+
+### Issue: "Element not found"
+
+**Cause**: Text, ID, or type doesn't match any element
+
+**Fix**: Use `screen_mapper.py` to inspect current screen:
+
+```bash
+python scripts/screen_mapper.py --verbose
+```
+
+### Issue: "UI hierarchy dump failed"
+
+**Cause**: App has accessibility services disabled or UI is loading
+
+**Fix**: Wait for UI to stabilize, then retry:
+
+```bash
+sleep 2
+python scripts/screen_mapper.py
+```
+
+### Issue: "Multiple devices connected"
+
+**Cause**: Multiple emulators or devices detected
+
+**Fix**: Specify target device with `-s`:
+
+```bash
+adb devices  # List devices
+python scripts/navigator.py -s emulator-5554 --find-text "Login" --tap
+```
+
+## Best Practices
+
+1. **Always run `emu_health_check.sh`** before starting automation
+2. **Use `screen_mapper.py`** to discover element IDs before scripting
+3. **Prefer resource IDs** over text for stable element targeting
+4. **Add delays** (`sleep`) between interactions for UI stability
+5. **Use `--json` output** for parsing in automated workflows
+6. **Monitor logs** with `log_monitor.py` during debugging
+7. **Target specific devices** with `-s` in multi-device setups
+8. **Terminate apps** with `app_launcher.py --terminate` to reset state between tests
+
+## Advanced Use Cases
+
+### Continuous Integration
+
+Run automated tests in CI/CD pipelines:
+
+```bash
+#!/bin/bash
+set -e
+
+# Start emulator in headless mode
+python scripts/emulator_manage.py --boot Pixel_6_API_34 --headless
+
+# Wait for boot
+adb wait-for-device
+
+# Build and install
+python scripts/build_and_test.py --task assembleDebug
+python scripts/build_and_test.py --task installDebug
+
+# Run UI tests
+python scripts/app_launcher.py --launch com.example.myapp
+python scripts/navigator.py --find-text "Login" --tap
+
+# Shutdown emulator
+python scripts/emulator_manage.py --shutdown
+```
+
+### Multi-Device Testing
+
+Test across multiple devices in parallel:
+
+```bash
+#!/bin/bash
+for device in $(adb devices | grep -v "List" | awk '{print $1}'); do
+  python scripts/navigator.py -s "$device" --find-text "Login" --tap &
+done
+wait
+```
+
+### Stress Testing
+
+Repeatedly interact with app to find edge cases:
+
+```bash
+#!/bin/bash
+for i in {1..100}; do
+  echo "Iteration $i"
+  python scripts/app_launcher.py --launch com.example.myapp
+  sleep 2
+  python scripts/navigator.py --find-text "Submit" --tap
+  python scripts/app_launcher.py --terminate com.example.myapp
+done
+```
+
+## References
+
+- [Android Debug Bridge (adb)](https://developer.android.com/studio/command-line/adb)
+- [UI Automator](https://developer.android.com/training/testing/ui-automator)
+- [Android Emulator Command-Line Interface](https://developer.android.com/studio/run/emulator-commandline)

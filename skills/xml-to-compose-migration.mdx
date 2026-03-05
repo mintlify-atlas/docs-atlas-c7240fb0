@@ -1,0 +1,604 @@
+---
+title: "XML to Compose Migration"
+description: "Convert Android XML layouts to idiomatic Jetpack Compose"
+---
+
+## What This Skill Provides
+
+The XML to Compose Migration skill helps you systematically convert Android XML layouts to Jetpack Compose while preserving functionality and embracing modern Compose patterns. This includes layout mapping, state migration, and incremental adoption strategies.
+
+## When to Use This Skill
+
+- Migrating existing XML-based UI to Compose
+- Converting Views to Composables
+- Modernizing legacy Android UI code
+- Planning incremental Compose adoption
+- Understanding View-to-Compose equivalents
+
+## Migration Workflow
+
+### 1. Analyze the XML Layout
+
+- Identify the root layout type (`ConstraintLayout`, `LinearLayout`, `FrameLayout`, etc.)
+- List all View widgets and their key attributes
+- Map data binding expressions (`@{}`) or view binding references
+- Identify custom views that need special handling
+- Note any `include`, `merge`, or `ViewStub` usage
+
+### 2. Plan the Migration
+
+- Decide: **Full rewrite** or **incremental migration** (using `ComposeView`/`AndroidView`)
+- Identify state sources (ViewModel, LiveData, savedInstanceState)
+- List reusable components to extract as separate Composables
+- Plan navigation integration if using Navigation component
+
+### 3. Convert Layouts
+
+Apply layout mappings to convert each View to its Compose equivalent.
+
+### 4. Migrate State
+
+- Convert `LiveData` observation to `StateFlow` collection or `observeAsState()`
+- Replace `findViewById` / ViewBinding with Compose state
+- Convert click listeners to lambda parameters
+
+### 5. Test and Verify
+
+- Compare visual output between XML and Compose versions
+- Test accessibility (content descriptions, touch targets)
+- Verify state preservation across configuration changes
+
+## Layout Mapping Reference
+
+### Container Layouts
+
+<Tabs>
+  <Tab title="LinearLayout">
+    ```xml XML
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <!-- Children -->
+    </LinearLayout>
+    ```
+    
+    ```kotlin Compose
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.Start
+    ) {
+        // Children
+    }
+    ```
+  </Tab>
+  <Tab title="FrameLayout">
+    ```xml XML
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <!-- Stacked children -->
+    </FrameLayout>
+    ```
+    
+    ```kotlin Compose
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Stacked children
+    }
+    ```
+  </Tab>
+  <Tab title="RecyclerView">
+    ```xml XML
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+    ```
+    
+    ```kotlin Compose
+    LazyColumn(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(items, key = { it.id }) { item ->
+            ItemRow(item = item)
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Common Widgets
+
+<Tabs>
+  <Tab title="TextView">
+    ```xml XML
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hello World"
+        android:textSize="18sp" />
+    ```
+    
+    ```kotlin Compose
+    Text(
+        text = "Hello World",
+        style = MaterialTheme.typography.bodyLarge
+    )
+    ```
+  </Tab>
+  <Tab title="EditText">
+    ```xml XML
+    <EditText
+        android:id="@+id/usernameInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Username" />
+    ```
+    
+    ```kotlin Compose
+    var username by remember { mutableStateOf("") }
+    
+    OutlinedTextField(
+        value = username,
+        onValueChange = { username = it },
+        label = { Text("Username") },
+        modifier = Modifier.fillMaxWidth()
+    )
+    ```
+  </Tab>
+  <Tab title="Button">
+    ```xml XML
+    <Button
+        android:id="@+id/submitButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Submit" />
+    ```
+    
+    ```kotlin Compose
+    Button(onClick = { /* Handle click */ }) {
+        Text("Submit")
+    }
+    ```
+  </Tab>
+  <Tab title="ImageView">
+    ```xml XML
+    <ImageView
+        android:id="@+id/profileImage"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/profile" />
+    ```
+    
+    ```kotlin Compose
+    Image(
+        painter = painterResource(R.drawable.profile),
+        contentDescription = "Profile picture",
+        modifier = Modifier.size(48.dp)
+    )
+    ```
+  </Tab>
+</Tabs>
+
+### Quick Reference Table
+
+| XML Widget | Compose Equivalent | Notes |
+|------------|-------------------|---------|
+| `TextView` | `Text` | Use `style` parameter |
+| `EditText` | `TextField` / `OutlinedTextField` | Requires state hoisting |
+| `Button` | `Button` | Use `onClick` lambda |
+| `ImageView` | `Image` | Use `painterResource()` or Coil |
+| `CheckBox` | `Checkbox` | Requires state hoisting |
+| `Switch` | `Switch` | Requires state hoisting |
+| `ProgressBar` | `CircularProgressIndicator` | For circular variant |
+| `RecyclerView` | `LazyColumn` / `LazyRow` | Most common migration |
+| `CardView` | `Card` | Material 3 component |
+| `Toolbar` | `TopAppBar` | Use inside `Scaffold` |
+
+## Attribute Mapping
+
+### Layout Attributes
+
+<CodeGroup>
+```xml match_parent
+<View
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+```
+
+```kotlin Compose Equivalent
+Box(
+    modifier = Modifier
+        .fillMaxWidth()
+        .fillMaxHeight()
+)
+```
+</CodeGroup>
+
+<CodeGroup>
+```xml layout_weight
+<LinearLayout android:orientation="horizontal">
+    <View
+        android:layout_width="0dp"
+        android:layout_weight="1" />
+    <View
+        android:layout_width="0dp"
+        android:layout_weight="2" />
+</LinearLayout>
+```
+
+```kotlin Compose Equivalent
+Row(modifier = Modifier.fillMaxWidth()) {
+    Box(modifier = Modifier.weight(1f))
+    Box(modifier = Modifier.weight(2f))
+}
+```
+</CodeGroup>
+
+### Visual Attributes
+
+| XML Attribute | Compose Modifier |
+|---------------|-----------------|
+| `android:padding` | `Modifier.padding()` |
+| `android:layout_margin` | `Modifier.padding()` on parent |
+| `android:background` | `Modifier.background()` |
+| `android:visibility="gone"` | Conditional composition |
+| `android:visibility="invisible"` | `Modifier.alpha(0f)` |
+| `android:clickable` | `Modifier.clickable { }` |
+| `android:elevation` | `Modifier.shadow()` |
+| `android:alpha` | `Modifier.alpha()` |
+| `android:rotation` | `Modifier.rotate()` |
+
+<Warning>
+**Visibility Mapping**
+
+`android:visibility="gone"` → Remove from composition entirely (don't render)
+
+`android:visibility="invisible"` → `Modifier.alpha(0f)` (keeps space but invisible)
+</Warning>
+
+## Common Migration Patterns
+
+### LinearLayout with Weights
+
+<CodeGroup>
+```xml XML Version
+<LinearLayout
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Left" />
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2"
+        android:text="Right" />
+</LinearLayout>
+```
+
+```kotlin Compose Version
+Row(
+    modifier = Modifier.fillMaxWidth()
+) {
+    Text(
+        text = "Left",
+        modifier = Modifier.weight(1f)
+    )
+    Text(
+        text = "Right",
+        modifier = Modifier.weight(2f)
+    )
+}
+```
+</CodeGroup>
+
+### RecyclerView to LazyColumn
+
+<CodeGroup>
+```kotlin Before: RecyclerView
+class MyFragment : Fragment() {
+    private lateinit var binding: FragmentMyBinding
+    private lateinit var adapter: MyAdapter
+    
+    override fun onCreateView(...): View {
+        binding = FragmentMyBinding.inflate(inflater)
+        adapter = MyAdapter()
+        binding.recyclerView.adapter = adapter
+        
+        viewModel.items.observe(viewLifecycleOwner) { items ->
+            adapter.submitList(items)
+        }
+        
+        return binding.root
+    }
+}
+```
+
+```kotlin After: LazyColumn
+@Composable
+fun MyScreen(viewModel: MyViewModel = hiltViewModel()) {
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(items, key = { it.id }) { item ->
+            ItemRow(
+                item = item,
+                onClick = { viewModel.onItemClick(item) }
+            )
+        }
+    }
+}
+```
+</CodeGroup>
+
+### EditText with Two-Way Binding
+
+<CodeGroup>
+```xml XML with Data Binding
+<EditText
+    android:text="@={viewModel.username}"
+    android:hint="@string/username_hint"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content" />
+```
+
+```kotlin Compose Version
+@Composable
+fun UsernameInput(viewModel: MyViewModel) {
+    val username by viewModel.username.collectAsState()
+    
+    OutlinedTextField(
+        value = username,
+        onValueChange = { viewModel.updateUsername(it) },
+        label = { Text(stringResource(R.string.username_hint)) },
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+```
+</CodeGroup>
+
+### ConstraintLayout Migration
+
+<CodeGroup>
+```xml XML ConstraintLayout
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <TextView
+        android:id="@+id/title"
+        android:text="Title"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+    <TextView
+        android:id="@+id/subtitle"
+        android:text="Subtitle"
+        app:layout_constraintTop_toBottomOf="@id/title"
+        app:layout_constraintStart_toStartOf="@id/title" />
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+```kotlin Compose ConstraintLayout
+import androidx.constraintlayout.compose.ConstraintLayout
+
+@Composable
+fun HeaderSection() {
+    ConstraintLayout(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        val (title, subtitle) = createRefs()
+        
+        Text(
+            text = "Title",
+            modifier = Modifier.constrainAs(title) {
+                top.linkTo(parent.top)
+                start.linkTo(parent.start)
+            }
+        )
+        
+        Text(
+            text = "Subtitle",
+            modifier = Modifier.constrainAs(subtitle) {
+                top.linkTo(title.bottom)
+                start.linkTo(title.start)
+            }
+        )
+    }
+}
+```
+</CodeGroup>
+
+<Note>
+For simple vertical/horizontal layouts, prefer `Column`/`Row` over `ConstraintLayout` in Compose for better performance.
+</Note>
+
+### Include / Merge to Composable
+
+<CodeGroup>
+```xml XML with Include
+<!-- layout_header.xml -->
+<merge>
+    <ImageView
+        android:id="@+id/avatar"
+        android:layout_width="48dp"
+        android:layout_height="48dp" />
+    <TextView
+        android:id="@+id/name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+</merge>
+
+<!-- Usage -->
+<include layout="@layout/layout_header" />
+```
+
+```kotlin Compose Reusable Component
+@Composable
+fun HeaderSection(
+    avatarUrl: String,
+    name: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = avatarUrl,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp).clip(CircleShape)
+        )
+        Text(text = name)
+    }
+}
+
+// Usage
+HeaderSection(
+    avatarUrl = user.avatar,
+    name = user.name
+)
+```
+</CodeGroup>
+
+## Incremental Migration (Interop)
+
+### Embedding Compose in XML
+
+<CodeGroup>
+```xml Add ComposeView to Layout
+<androidx.compose.ui.platform.ComposeView
+    android:id="@+id/compose_view"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content" />
+```
+
+```kotlin Initialize ComposeView
+class MyFragment : Fragment() {
+    private lateinit var binding: FragmentMyBinding
+    
+    override fun onCreateView(...): View {
+        binding = FragmentMyBinding.inflate(inflater)
+        
+        binding.composeView.setContent {
+            MaterialTheme {
+                MyComposable()
+            }
+        }
+        
+        return binding.root
+    }
+}
+```
+</CodeGroup>
+
+### Embedding XML Views in Compose
+
+```kotlin AndroidView Wrapper
+@Composable
+fun MapViewComposable(
+    modifier: Modifier = Modifier,
+    onMapReady: (GoogleMap) -> Unit
+) {
+    AndroidView(
+        factory = { context ->
+            MapView(context).apply {
+                onCreate(null)
+                getMapAsync { map ->
+                    onMapReady(map)
+                }
+            }
+        },
+        update = { mapView ->
+            // Update the view when state changes
+        },
+        modifier = modifier
+    )
+}
+```
+
+<Note>
+Use `AndroidView` for Views that don't have Compose equivalents yet, such as `MapView`, `WebView`, or custom third-party views.
+</Note>
+
+## State Migration
+
+### LiveData to StateFlow
+
+<CodeGroup>
+```kotlin Before: LiveData
+class MyViewModel : ViewModel() {
+    private val _uiState = MutableLiveData<UiState>()
+    val uiState: LiveData<UiState> = _uiState
+}
+
+// In Fragment
+viewModel.uiState.observe(viewLifecycleOwner) { state ->
+    binding.title.text = state.title
+}
+```
+
+```kotlin After: StateFlow
+class MyViewModel : ViewModel() {
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+}
+
+// In Composable
+@Composable
+fun MyScreen(viewModel: MyViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
+    Text(text = uiState.title)
+}
+```
+</CodeGroup>
+
+### Click Listeners to Lambdas
+
+<CodeGroup>
+```kotlin Before: setOnClickListener
+binding.submitButton.setOnClickListener {
+    viewModel.submit()
+}
+```
+
+```kotlin After: onClick Lambda
+Button(
+    onClick = { viewModel.submit() }
+) {
+    Text("Submit")
+}
+```
+</CodeGroup>
+
+## Migration Checklist
+
+- [ ] All layouts converted (no `include` or `merge` left)
+- [ ] State hoisted properly (no internal mutable state for user input)
+- [ ] Click handlers converted to lambdas
+- [ ] RecyclerView adapters removed (using LazyColumn/LazyRow)
+- [ ] ViewBinding/DataBinding removed
+- [ ] Navigation integrated (NavHost or interop)
+- [ ] Theming applied (MaterialTheme)
+- [ ] Accessibility preserved (content descriptions, touch targets)
+- [ ] Preview annotations added for development
+- [ ] Old XML files deleted
+
+## Related Skills
+
+- [Compose UI](/skills/compose-ui) - Learn Compose best practices
+- [Compose Navigation](/skills/compose-navigation) - Migrate navigation to Compose
+- [Coil Compose](/skills/coil-compose) - Load images in Compose
+
+## References
+
+- [Interoperability APIs](https://developer.android.com/develop/ui/compose/migrate/interoperability-apis)
+- [Migration Strategy](https://developer.android.com/develop/ui/compose/migrate/strategy)
+- [Compose and Views side by side](https://developer.android.com/develop/ui/compose/migrate)

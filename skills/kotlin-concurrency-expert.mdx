@@ -1,0 +1,413 @@
+---
+title: 'Kotlin Concurrency Expert'
+description: 'Master Kotlin Coroutines review, remediation, and debugging for Android applications'
+---
+
+## Overview
+
+The Kotlin Concurrency Expert skill provides systematic approaches for reviewing and fixing coroutine-related issues in Android codebases. This skill applies structured concurrency, lifecycle safety, proper scoping, and modern best practices while minimizing behavior changes.
+
+## When to Use This Skill
+
+Invoke this skill when you encounter:
+
+- ANRs (Application Not Responding) caused by main thread blocking
+- Memory leaks from unmanaged coroutines
+- Race conditions and thread safety issues
+- Lifecycle-related crashes (e.g., collecting flows after Fragment destruction)
+- `CancellationException` handling bugs
+- Non-cooperative cancellation in tight loops
+- Need to convert callback-based APIs to coroutine-friendly patterns
+
+## Triage Workflow
+
+Before applying fixes, perform a systematic triage:
+
+### 1. Capture the Symptom
+
+Identify the exact error category:
+- **ANR**: Main thread blocked for >5 seconds
+- **Memory leak**: Zombie coroutines surviving lifecycle destruction
+- **Race condition**: Inconsistent state due to concurrent access
+- **Incorrect state**: UI showing stale or wrong data
+
+### 2. Check Project Setup
+
+Verify critical dependencies:
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")
+}
+```
+
+### 3. Identify Scope Context
+
+Determine which scope is in use:
+- `viewModelScope`: For ViewModel operations
+- `lifecycleScope`: For UI operations in Activity/Fragment
+- Custom scope: May lack proper lifecycle binding
+- **No scope / `GlobalScope`**: Critical issue requiring immediate fix
+
+### 4. Verify Dispatcher Usage
+
+Confirm dispatcher correctness:
+- `Dispatchers.Main`: UI updates, lightweight operations
+- `Dispatchers.IO`: Network, database, file I/O
+- `Dispatchers.Default`: CPU-intensive computation
+
+## Critical Patterns and Fixes
+
+### Dispatcher Injection for Testability
+
+Always inject dispatchers to enable unit testing:
+
+<CodeGroup>
+```kotlin Correct
+class UserRepository(
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) {
+    suspend fun fetchUser(id: String): User = withContext(ioDispatcher) {
+        // Network call runs on IO dispatcher
+        api.getUser(id)
+    }
+}
+
+// Test
+@Test
+fun `fetchUser returns user data`() = runTest {
+    val testDispatcher = StandardTestDispatcher(testScheduler)
+    val repository = UserRepository(testDispatcher)
+    
+    val user = repository.fetchUser("123")
+    
+    assertEquals("John", user.name)
+}
+```
+
+```kotlin Incorrect
+class UserRepository {
+    suspend fun fetchUser(id: String): User = withContext(Dispatchers.IO) {
+        // Hardcoded dispatcher prevents testing
+        api.getUser(id)
+    }
+}
+```
+</CodeGroup>
+
+### Lifecycle-Aware Flow Collection
+
+Use `repeatOnLifecycle` to safely collect flows in UI components:
+
+<CodeGroup>
+```kotlin Correct
+class MyFragment : Fragment() {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { state ->
+                    updateUI(state)
+                }
+            }
+        }
+    }
+}
+```
+
+```kotlin Incorrect
+class MyFragment : Fragment() {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        // DEPRECATED: Collection continues in stopped state
+        lifecycleScope.launchWhenStarted {
+            viewModel.uiState.collect { state ->
+                updateUI(state) // Crashes if Fragment destroyed
+            }
+        }
+    }
+}
+```
+</CodeGroup>
+
+<Warning>
+Never use deprecated `launchWhenStarted`, `launchWhenResumed`, or `launchWhenCreated`. These APIs do not cancel collection when the lifecycle drops below the threshold—they only suspend, leading to memory leaks and crashes.
+</Warning>
+
+### State Encapsulation
+
+Expose read-only state to prevent external mutation:
+
+<CodeGroup>
+```kotlin Correct
+class ProfileViewModel : ViewModel() {
+    private val _uiState = MutableStateFlow(ProfileUiState())
+    val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
+    
+    fun updateProfile(name: String) {
+        _uiState.update { it.copy(name = name) }
+    }
+}
+```
+
+```kotlin Incorrect
+class ProfileViewModel : ViewModel() {
+    // Leaks mutability—callers can modify state directly
+    val uiState = MutableStateFlow(ProfileUiState())
+    
+    fun updateProfile(name: String) {
+        uiState.update { it.copy(name = name) }
+    }
+}
+```
+</CodeGroup>
+
+### Exception Handling
+
+Always rethrow `CancellationException` to preserve structured concurrency:
+
+<CodeGroup>
+```kotlin Correct
+suspend fun loadData() {
+    try {
+        val data = repository.fetchData()
+        _uiState.value = UiState.Success(data)
+    } catch (e: CancellationException) {
+        throw e // Must rethrow to propagate cancellation
+    } catch (e: Exception) {
+        _uiState.value = UiState.Error(e.message)
+    }
+}
+```
+
+```kotlin Incorrect
+suspend fun loadData() {
+    try {
+        val data = repository.fetchData()
+        _uiState.value = UiState.Success(data)
+    } catch (e: Exception) {
+        // Swallows CancellationException—breaks cancellation
+        _uiState.value = UiState.Error(e.message)
+    }
+}
+```
+</CodeGroup>
+
+<Warning>
+Swallowing `CancellationException` breaks structured concurrency and can cause memory leaks. Cancelled coroutines must propagate their cancellation upward.
+</Warning>
+
+### Cooperative Cancellation
+
+Add cancellation checks in tight loops:
+
+<CodeGroup>
+```kotlin Correct
+suspend fun processLargeList(items: List<Item>) {
+    items.forEach { item ->
+        ensureActive() // Checks if coroutine is cancelled
+        processItem(item)
+    }
+}
+
+// Alternative using yield()
+suspend fun processLargeList(items: List<Item>) {
+    items.forEach { item ->
+        yield() // Gives other coroutines a chance to run
+        processItem(item)
+    }
+}
+```
+
+```kotlin Incorrect
+suspend fun processLargeList(items: List<Item>) {
+    items.forEach { item ->
+        // Never checks cancellation—runs to completion even if cancelled
+        processItem(item)
+    }
+}
+```
+</CodeGroup>
+
+### Callback API Conversion
+
+Convert callback-based APIs to Flow using `callbackFlow`:
+
+```kotlin
+fun locationUpdates(context: Context): Flow<Location> = callbackFlow {
+    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    
+    val listener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            trySend(location) // Send to flow
+        }
+        
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {}
+    }
+    
+    // Register listener
+    locationManager.requestLocationUpdates(
+        LocationManager.GPS_PROVIDER,
+        1000L,
+        10f,
+        listener
+    )
+    
+    // Clean up when flow is cancelled
+    awaitClose {
+        locationManager.removeUpdates(listener)
+    }
+}
+```
+
+<Warning>
+Always use `awaitClose` in `callbackFlow` to properly clean up resources when the flow collector cancels. Without it, you'll leak listeners and resources.
+</Warning>
+
+## Scope Selection Guide
+
+| Scope | Use Case | Lifecycle | When to Use |
+|-------|----------|-----------|-------------|
+| `viewModelScope` | ViewModel operations | Cleared when ViewModel destroyed | Data loading, state management |
+| `lifecycleScope` | UI operations | Destroyed with lifecycle owner | One-off UI actions, navigation |
+| `repeatOnLifecycle` | Flow collection | Started/Stopped with state | Collecting StateFlow/SharedFlow in UI |
+| `applicationScope` (injected) | App-wide work | Application lifetime | Analytics, sync, background work |
+| `GlobalScope` | **NEVER USE** | **Forever** | **Breaks structured concurrency** |
+
+## Common ANR Fixes
+
+### Problem: Main Thread Blocking
+
+```kotlin
+// BEFORE: Blocks main thread
+fun loadUsers() {
+    val users = database.getAllUsers() // Synchronous DB call on main
+    _uiState.value = UiState.Success(users)
+}
+
+// AFTER: Moves work to IO dispatcher
+fun loadUsers() {
+    viewModelScope.launch {
+        val users = withContext(Dispatchers.IO) {
+            database.getAllUsers()
+        }
+        _uiState.value = UiState.Success(users)
+    }
+}
+```
+
+### Problem: Heavy Computation on Main Thread
+
+```kotlin
+// BEFORE: CPU-intensive work blocks UI
+fun processImage(bitmap: Bitmap) {
+    val processed = applyFilters(bitmap) // Heavy computation
+    _uiState.value = UiState.Success(processed)
+}
+
+// AFTER: Moves computation to Default dispatcher
+fun processImage(bitmap: Bitmap) {
+    viewModelScope.launch {
+        val processed = withContext(Dispatchers.Default) {
+            applyFilters(bitmap)
+        }
+        _uiState.value = UiState.Success(processed)
+    }
+}
+```
+
+## Memory Leak Fixes
+
+### Problem: GlobalScope Leaks
+
+```kotlin
+// BEFORE: Coroutine survives ViewModel destruction
+class MyViewModel : ViewModel() {
+    fun startPolling() {
+        GlobalScope.launch {
+            while (true) {
+                fetchData() // Leaks ViewModel reference
+                delay(5000)
+            }
+        }
+    }
+}
+
+// AFTER: Coroutine cancelled when ViewModel cleared
+class MyViewModel : ViewModel() {
+    fun startPolling() {
+        viewModelScope.launch {
+            while (true) {
+                fetchData()
+                delay(5000)
+            }
+        } // Automatically cancelled when ViewModel cleared
+    }
+}
+```
+
+## Testing Pattern
+
+Test coroutines using `runTest` and `StandardTestDispatcher`:
+
+```kotlin
+@Test
+fun `loading data updates state to success`() = runTest {
+    // Arrange
+    val testDispatcher = StandardTestDispatcher(testScheduler)
+    val repository = FakeRepository()
+    val viewModel = MyViewModel(repository, testDispatcher)
+    
+    // Act
+    viewModel.loadData()
+    advanceUntilIdle() // Advance virtual time
+    
+    // Assert
+    val state = viewModel.uiState.value
+    assertTrue(state is UiState.Success)
+    assertEquals(expectedData, state.data)
+}
+```
+
+## Best Practices Summary
+
+1. **Never use `GlobalScope`**—always use lifecycle-bound scopes
+2. **Inject dispatchers** for testability
+3. **Use `repeatOnLifecycle`** for Flow collection in UI
+4. **Encapsulate mutable state** with private `MutableStateFlow`
+5. **Always rethrow `CancellationException`** in catch blocks
+6. **Add `ensureActive()` or `yield()`** in tight loops
+7. **Use `callbackFlow` with `awaitClose`** for callback conversions
+8. **Prefer `StateFlow` over `LiveData`** for modern reactive patterns
+
+## Troubleshooting Guide
+
+### Issue: "Cannot access view after onDestroyView"
+
+**Cause**: Flow collection continues after Fragment view destroyed
+
+**Fix**: Use `viewLifecycleOwner.lifecycleScope` instead of `lifecycleScope`
+
+### Issue: Tests hang indefinitely
+
+**Cause**: Dispatchers not injected, real `Dispatchers.IO` used
+
+**Fix**: Inject `CoroutineDispatcher` and use `StandardTestDispatcher` in tests
+
+### Issue: Coroutine not cancelled when expected
+
+**Cause**: `CancellationException` swallowed in catch block
+
+**Fix**: Add explicit `catch (e: CancellationException) { throw e }` before generic catch
+
+## References
+
+- [Kotlin Coroutines Best Practices](https://developer.android.com/kotlin/coroutines/coroutines-best-practices)
+- [StateFlow and SharedFlow](https://developer.android.com/kotlin/flow/stateflow-and-sharedflow)
+- [repeatOnLifecycle API](https://developer.android.com/topic/libraries/architecture/coroutines#repeatonlifecycle)

@@ -1,0 +1,112 @@
+---
+title: Introduction
+description: Supercharge your AI coding assistants with expert Android development knowledge
+---
+
+## What are Agent Skills?
+
+**Agent Skills** are a standardized way to package capabilities, instructions, and best practices for AI agents. Instead of pasting the same prompt repeatedly ("How do I implement MVVM?", "Check this for accessibility"), you install these skills into your agent's environment.
+
+When an agent detects you are working on a relevant task (e.g., "Create a verified repository"), it automatically loads the expert instructions from the corresponding `SKILL.md` file.
+
+<CardGroup cols={3}>
+  <Card title="Consistency" icon="check">
+    The agent always follows your defined architecture patterns
+  </Card>
+  <Card title="Accuracy" icon="bullseye">
+    Uses the latest 2025 best practices (Compose, Hilt, Room)
+  </Card>
+  <Card title="Efficiency" icon="bolt">
+    No need for long context-stuffing prompts
+  </Card>
+</CardGroup>
+
+## Why Use Awesome Android Agent Skills?
+
+This repository provides a comprehensive suite of **Agent Skills** designed to supercharge GitHub Copilot, Claude, Google Gemini, Cursor and other agentic AI tools with expert knowledge of modern Android development.
+
+<Note>
+  Learn more about the Agent Skills standard at [agentskills.io](https://agentskills.io)
+</Note>
+
+## Available Skills
+
+These skills are located in `.github/skills/` and are ready for use by compatible agents.
+
+<CardGroup cols={2}>
+  <Card title="Android Architecture" icon="sitemap">
+    Expert guidance on **Clean Architecture**, **Modularization**, and **Dependency Injection** with **Hilt**. Ensures strict separation of UI, Domain, and Data layers.
+  </Card>
+  
+  <Card title="Jetpack Compose UI" icon="palette">
+    Best practices for building stateless, performant Composables. Focuses on **State Hoisting**, **Modifiers order**, and **Theming**.
+  </Card>
+  
+  <Card title="ViewModel & State" icon="database">
+    Proper implementation of **ViewModel** using `StateFlow` for UI state and `SharedFlow` for one-off events. Avoids common pitfalls with channel usage and lifecycle collection.
+  </Card>
+  
+  <Card title="Data Layer & Offline-First" icon="cloud-arrow-down">
+    Implements the **Repository Pattern** with **Room** (local) and **Retrofit** (remote). Guides the agent to build robust **Offline-First** synchronization logic.
+  </Card>
+  
+  <Card title="Accessibility" icon="universal-access">
+    A rigorous checklist for auditing **Content Descriptions**, **Touch Targets**, and **Contrast**. Ensures your app is usable by everyone.
+  </Card>
+  
+  <Card title="Gradle Build Logic" icon="gear">
+    Set up **Convention Plugins**, **Version Catalogs**, and **Composite Builds**. Configure `build-logic` like a pro to share configurations across modules.
+  </Card>
+  
+  <Card title="Testing & Screenshots" icon="vial">
+    Setup for **Unit**, **Hilt**, and **Screenshot Testing** (Roborazzi). Ensures a reliable testing pyramid with standard libraries.
+  </Card>
+  
+  <Card title="Kotlin Concurrency Expert" icon="arrows-spin">
+    Review and fix **Kotlin Coroutines** issues with triage-based workflow. Covers **structured concurrency**, **lifecycle safety**, and **exception handling**.
+  </Card>
+  
+  <Card title="Compose Performance Audit" icon="gauge-high">
+    Audit and optimize **Jetpack Compose** runtime performance. Identifies **recomposition storms**, **unstable keys**, and **heavy composition work**.
+  </Card>
+  
+  <Card title="XML to Compose Migration" icon="arrow-right-arrow-left">
+    Convert **XML layouts** to idiomatic **Jetpack Compose**. Comprehensive mapping tables for layouts, widgets, and attributes.
+  </Card>
+  
+  <Card title="Compose Navigation" icon="route">
+    Type-safe navigation with **Navigation Compose**. Covers **deep links**, **nested graphs**, **adaptive navigation**, and **testing**.
+  </Card>
+  
+  <Card title="Retrofit Networking" icon="network-wired">
+    Expert guidance on **Retrofit**, **OkHttp**, and **Coroutines** for networking. Includes configuration for **Serialization**, **Interceptors**, and **Hilt**.
+  </Card>
+  
+  <Card title="Gradle Build Performance" icon="rocket">
+    Debug and optimize **Gradle/Android build times**. 12 optimization patterns including **Configuration Cache**, **KSP migration**, and **CI/CD caching**.
+  </Card>
+  
+  <Card title="Coil for Jetpack Compose" icon="image">
+    Expert guidance on **Coil** for image loading in **Jetpack Compose**. Covers **AsyncImage**, **state management**, and **performance optimization**.
+  </Card>
+  
+  <Card title="Android Emulator Automation" icon="robot">
+    **Essential Production Scripts** for Semantic Navigation, Build, and Testing. Automate **ADB**, **Emulator**, and **UIAutomator** workflows for AI agents.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+When you ask your AI assistant to help with Android development tasks, it automatically detects which skills are relevant and loads the expert instructions:
+
+```text
+You: "Create a repository for fetching news with offline support"
+
+Agent: *Loads android-data-layer skill*
+        *Applies Repository Pattern with Room + Retrofit*
+        *Implements offline-first sync logic*
+```
+
+<Tip>
+  Get started by following the [Quickstart](/quickstart) guide to install these skills in your project.
+</Tip>

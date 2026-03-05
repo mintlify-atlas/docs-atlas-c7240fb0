@@ -1,0 +1,600 @@
+---
+title: 'Gradle Convention Plugins'
+description: 'Build scalable, maintainable Android projects with Convention Plugins and Version Catalogs'
+---
+
+## Overview
+
+Gradle Convention Plugins provide a powerful pattern for centralizing build logic across multi-module Android projects. Instead of copying configuration between `build.gradle.kts` files, you define reusable plugins that encapsulate common setup patterns (Compose, Hilt, Kotlin options, etc.).
+
+This approach is used by Google's "Now in Android" reference app and is considered best practice for modern Android projects.
+
+## When to Use This Skill
+
+Invoke this skill when you need to:
+
+- Set up a scalable build system for a multi-module Android project
+- Eliminate duplicated build configuration across modules
+- Centralize dependency versions using Version Catalogs
+- Create custom Gradle plugins for your project
+- Migrate from buildSrc to convention plugins
+- Apply consistent build settings (SDK versions, Compose, Hilt) across modules
+
+## Project Structure
+
+A properly configured project uses a `build-logic` composite build:
+
+```text
+root/
+├── build-logic/
+│   ├── convention/
+│   │   ├── src/main/kotlin/
+│   │   │   ├── AndroidApplicationConventionPlugin.kt
+│   │   │   ├── AndroidLibraryConventionPlugin.kt
+│   │   │   ├── AndroidComposeConventionPlugin.kt
+│   │   │   └── AndroidHiltConventionPlugin.kt
+│   │   └── build.gradle.kts
+│   ├── build.gradle.kts
+│   └── settings.gradle.kts
+├── gradle/
+│   └── libs.versions.toml
+├── app/
+│   └── build.gradle.kts
+├── core/
+│   ├── data/
+│   │   └── build.gradle.kts
+│   └── ui/
+│       └── build.gradle.kts
+└── settings.gradle.kts
+```
+
+## Setup Workflow
+
+### Step 1: Configure Root `settings.gradle.kts`
+
+Include the `build-logic` directory as a plugin management source:
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    includeBuild("build-logic")
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "MyApp"
+include(":app")
+include(":core:data")
+include(":core:ui")
+```
+
+<Warning>
+`repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)` enforces centralized repository configuration. Remove any `repositories {}` blocks from module-level build files.
+</Warning>
+
+### Step 2: Define Version Catalog
+
+Centralize all dependency versions in `gradle/libs.versions.toml`:
+
+```toml
+[versions]
+androidGradlePlugin = "8.2.0"
+kotlin = "1.9.20"
+compose = "1.5.4"
+composeCompiler = "1.5.4"
+hilt = "2.48"
+retrofit = "2.9.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version = "1.12.0" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version = "2.6.2" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version = "2023.10.01" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
+hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
+android-library = { id = "com.android.library", version.ref = "androidGradlePlugin" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+
+# Convention plugins
+myapp-android-application = { id = "myapp.android.application", version = "unspecified" }
+myapp-android-library = { id = "myapp.android.library", version = "unspecified" }
+myapp-android-compose = { id = "myapp.android.compose", version = "unspecified" }
+myapp-android-hilt = { id = "myapp.android.hilt", version = "unspecified" }
+```
+
+### Step 3: Configure `build-logic`
+
+Create the convention plugin build configuration:
+
+<CodeGroup>
+```kotlin build-logic/settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    versionCatalogs {
+        create("libs") {
+            from(files("../gradle/libs.versions.toml"))
+        }
+    }
+}
+
+rootProject.name = "build-logic"
+include(":convention")
+```
+
+```kotlin build-logic/build.gradle.kts
+plugins {
+    `kotlin-dsl`
+}
+
+group = "com.myapp.buildlogic"
+```
+
+```kotlin build-logic/convention/build.gradle.kts
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+plugins {
+    `kotlin-dsl`
+}
+
+group = "com.myapp.buildlogic"
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType<KotlinCompile>().configureEach {
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+}
+
+dependencies {
+    compileOnly(libs.android.gradlePlugin)
+    compileOnly(libs.kotlin.gradlePlugin)
+}
+
+gradlePlugin {
+    plugins {
+        register("androidApplication") {
+            id = "myapp.android.application"
+            implementationClass = "AndroidApplicationConventionPlugin"
+        }
+        register("androidLibrary") {
+            id = "myapp.android.library"
+            implementationClass = "AndroidLibraryConventionPlugin"
+        }
+        register("androidCompose") {
+            id = "myapp.android.compose"
+            implementationClass = "AndroidComposeConventionPlugin"
+        }
+        register("androidHilt") {
+            id = "myapp.android.hilt"
+            implementationClass = "AndroidHiltConventionPlugin"
+        }
+    }
+}
+```
+</CodeGroup>
+
+<Warning>
+Add `android-gradlePlugin` and `kotlin-gradlePlugin` to your Version Catalog libraries section for the `build-logic/convention` dependencies to resolve.
+</Warning>
+
+### Step 4: Create Convention Plugins
+
+Implement reusable convention plugins:
+
+#### Android Application Plugin
+
+```kotlin
+// build-logic/convention/src/main/kotlin/AndroidApplicationConventionPlugin.kt
+import com.android.build.api.dsl.ApplicationExtension
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.kotlin.dsl.configure
+
+class AndroidApplicationConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) {
+        with(target) {
+            with(pluginManager) {
+                apply("com.android.application")
+                apply("org.jetbrains.kotlin.android")
+            }
+
+            extensions.configure<ApplicationExtension> {
+                compileSdk = 34
+
+                defaultConfig {
+                    minSdk = 24
+                    targetSdk = 34
+                    versionCode = 1
+                    versionName = "1.0"
+
+                    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+                    vectorDrawables {
+                        useSupportLibrary = true
+                    }
+                }
+
+                buildTypes {
+                    release {
+                        isMinifyEnabled = true
+                        proguardFiles(
+                            getDefaultProguardFile("proguard-android-optimize.txt"),
+                            "proguard-rules.pro"
+                        )
+                    }
+                }
+
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
+
+                kotlinOptions {
+                    jvmTarget = "17"
+                }
+
+                packaging {
+                    resources {
+                        excludes += "/META-INF/{AL2.0,LGPL2.1}"
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+#### Android Library Plugin
+
+```kotlin
+// build-logic/convention/src/main/kotlin/AndroidLibraryConventionPlugin.kt
+import com.android.build.gradle.LibraryExtension
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.kotlin.dsl.configure
+
+class AndroidLibraryConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) {
+        with(target) {
+            with(pluginManager) {
+                apply("com.android.library")
+                apply("org.jetbrains.kotlin.android")
+            }
+
+            extensions.configure<LibraryExtension> {
+                compileSdk = 34
+
+                defaultConfig {
+                    minSdk = 24
+                    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+                }
+
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
+
+                kotlinOptions {
+                    jvmTarget = "17"
+                }
+            }
+        }
+    }
+}
+```
+
+#### Compose Plugin
+
+```kotlin
+// build-logic/convention/src/main/kotlin/AndroidComposeConventionPlugin.kt
+import com.android.build.api.dsl.CommonExtension
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.kotlin.dsl.dependencies
+
+class AndroidComposeConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) {
+        with(target) {
+            pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
+
+            val extension = extensions.getByType(CommonExtension::class.java)
+            extension.apply {
+                buildFeatures {
+                    compose = true
+                }
+
+                composeOptions {
+                    kotlinCompilerExtensionVersion = "1.5.4"
+                }
+            }
+
+            dependencies {
+                val bom = libs.findLibrary("androidx.compose.bom").get()
+                add("implementation", platform(bom))
+                add("implementation", libs.findLibrary("androidx.compose.ui").get())
+                add("implementation", libs.findLibrary("androidx.compose.material3").get())
+                add("debugImplementation", libs.findLibrary("androidx.compose.ui.tooling").get())
+            }
+        }
+    }
+}
+```
+
+#### Hilt Plugin
+
+```kotlin
+// build-logic/convention/src/main/kotlin/AndroidHiltConventionPlugin.kt
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.kotlin.dsl.dependencies
+
+class AndroidHiltConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) {
+        with(target) {
+            with(pluginManager) {
+                apply("com.google.dagger.hilt.android")
+                apply("org.jetbrains.kotlin.kapt")
+            }
+
+            dependencies {
+                add("implementation", libs.findLibrary("hilt.android").get())
+                add("kapt", libs.findLibrary("hilt.compiler").get())
+            }
+        }
+    }
+}
+```
+
+### Step 5: Apply Convention Plugins
+
+Use your custom plugins in module build files:
+
+<CodeGroup>
+```kotlin app/build.gradle.kts
+plugins {
+    alias(libs.plugins.myapp.android.application)
+    alias(libs.plugins.myapp.android.compose)
+    alias(libs.plugins.myapp.android.hilt)
+}
+
+android {
+    namespace = "com.myapp"
+    
+    // Only app-specific configuration here
+    defaultConfig {
+        applicationId = "com.myapp"
+    }
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+}
+```
+
+```kotlin core/data/build.gradle.kts
+plugins {
+    alias(libs.plugins.myapp.android.library)
+    alias(libs.plugins.myapp.android.hilt)
+}
+
+android {
+    namespace = "com.myapp.core.data"
+}
+
+dependencies {
+    implementation(libs.retrofit)
+    implementation(libs.androidx.core.ktx)
+}
+```
+
+```kotlin core/ui/build.gradle.kts
+plugins {
+    alias(libs.plugins.myapp.android.library)
+    alias(libs.plugins.myapp.android.compose)
+}
+
+android {
+    namespace = "com.myapp.core.ui"
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+}
+```
+</CodeGroup>
+
+## Advanced Patterns
+
+### Shared Configuration with Extension Functions
+
+Create reusable configuration functions:
+
+```kotlin
+// build-logic/convention/src/main/kotlin/KotlinAndroid.kt
+import com.android.build.api.dsl.CommonExtension
+import org.gradle.api.JavaVersion
+import org.gradle.api.Project
+import org.gradle.kotlin.dsl.withType
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+internal fun Project.configureKotlinAndroid(
+    commonExtension: CommonExtension<*, *, *, *, *>,
+) {
+    commonExtension.apply {
+        compileSdk = 34
+
+        defaultConfig {
+            minSdk = 24
+        }
+
+        compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+            isCoreLibraryDesugaringEnabled = true
+        }
+    }
+
+    tasks.withType<KotlinCompile>().configureEach {
+        kotlinOptions {
+            jvmTarget = JavaVersion.VERSION_17.toString()
+            freeCompilerArgs = freeCompilerArgs + listOf(
+                "-opt-in=kotlin.RequiresOptIn",
+                "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
+            )
+        }
+    }
+
+    dependencies.add("coreLibraryDesugaring", libs.findLibrary("android.desugarJdkLibs").get())
+}
+```
+
+Use in plugins:
+
+```kotlin
+class AndroidApplicationConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) {
+        with(target) {
+            with(pluginManager) {
+                apply("com.android.application")
+                apply("org.jetbrains.kotlin.android")
+            }
+
+            extensions.configure<ApplicationExtension> {
+                configureKotlinAndroid(this)
+                defaultConfig.targetSdk = 34
+            }
+        }
+    }
+}
+```
+
+### Environment-Specific Configuration
+
+Dynamically configure based on build environment:
+
+```kotlin
+class AndroidApplicationConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) {
+        with(target) {
+            extensions.configure<ApplicationExtension> {
+                buildTypes {
+                    debug {
+                        applicationIdSuffix = ".debug"
+                        versionNameSuffix = "-dev"
+                    }
+                    
+                    create("staging") {
+                        initWith(getByName("debug"))
+                        matchingFallbacks += listOf("debug")
+                        applicationIdSuffix = ".staging"
+                        versionNameSuffix = "-staging"
+                    }
+                    
+                    release {
+                        isMinifyEnabled = true
+                        isShrinkResources = true
+                        proguardFiles(
+                            getDefaultProguardFile("proguard-android-optimize.txt"),
+                            "proguard-rules.pro"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+## Best Practices
+
+1. **Use Version Catalogs** for all dependency versions
+2. **Keep convention plugins focused**—one concern per plugin
+3. **Apply plugins composably**—combine multiple conventions in modules
+4. **Use extension functions** for shared configuration logic
+5. **Define SDK versions centrally** in one place
+6. **Document plugin purpose** in class KDoc
+7. **Test convention plugins** with a sample multi-module project
+8. **Version your convention plugins** when publishing to plugin portal
+
+## Troubleshooting
+
+### Issue: "Plugin with id 'myapp.android.application' not found"
+
+**Cause**: Convention plugin not registered in `gradlePlugin {}` block
+
+**Fix**: Add registration in `build-logic/convention/build.gradle.kts`:
+
+```kotlin
+gradlePlugin {
+    plugins {
+        register("androidApplication") {
+            id = "myapp.android.application"
+            implementationClass = "AndroidApplicationConventionPlugin"
+        }
+    }
+}
+```
+
+### Issue: "Cannot access libs from convention plugin"
+
+**Cause**: Version catalog not accessible in `build-logic`
+
+**Fix**: Reference catalog in `build-logic/settings.gradle.kts`:
+
+```kotlin
+versionCatalogs {
+    create("libs") {
+        from(files("../gradle/libs.versions.toml"))
+    }
+}
+```
+
+### Issue: Convention plugin changes not reflected
+
+**Cause**: Gradle didn't detect changes in composite build
+
+**Fix**: Run `./gradlew --stop` to kill daemon, then rebuild
+
+## Migration Checklist
+
+- [ ] Create `build-logic` directory structure
+- [ ] Configure `settings.gradle.kts` to include `build-logic`
+- [ ] Define Version Catalog in `gradle/libs.versions.toml`
+- [ ] Create convention plugins in `build-logic/convention/src/main/kotlin/`
+- [ ] Register plugins in `gradlePlugin {}` block
+- [ ] Add convention plugin IDs to Version Catalog `[plugins]` section
+- [ ] Apply convention plugins in module build files using `alias(libs.plugins.*)`
+- [ ] Remove duplicated configuration from module build files
+- [ ] Test build across all modules
+- [ ] Document custom plugin usage in project README
+
+## References
+
+- [Now in Android GitHub](https://github.com/android/nowinandroid)
+- [Gradle Convention Plugins Documentation](https://docs.gradle.org/current/samples/sample_convention_plugins.html)
+- [Android Gradle Plugin DSL Reference](https://developer.android.com/reference/tools/gradle-api)

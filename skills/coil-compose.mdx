@@ -1,0 +1,435 @@
+---
+title: "Coil for Jetpack Compose"
+description: "Load images efficiently in Jetpack Compose using Coil"
+---
+
+## What This Skill Provides
+
+The Coil Compose skill provides expert guidance on using Coil (Coroutines Image Loader) for image loading in Jetpack Compose. Coil is the recommended library for Compose due to its efficiency, coroutine-based architecture, and seamless integration with Compose.
+
+## When to Use This Skill
+
+- Loading images from URLs or URIs
+- Handling image loading states (loading, success, error)
+- Optimizing image performance in Compose
+- Displaying placeholders and error images
+- Applying transformations to images
+- Building image-heavy UIs with LazyColumn/LazyRow
+
+## Setup
+
+Add Coil to your project:
+
+```kotlin build.gradle.kts
+dependencies {
+    implementation("io.coil-kt:coil-compose:2.5.0")
+}
+```
+
+## Primary Component: AsyncImage
+
+Use `AsyncImage` for most use cases. It handles size resolution automatically and supports standard `Image` parameters.
+
+```kotlin Basic AsyncImage
+AsyncImage(
+    model = "https://example.com/image.jpg",
+    contentDescription = "Product image",
+    modifier = Modifier.size(200.dp)
+)
+```
+
+### With Image Request Builder
+
+```kotlin AsyncImage with ImageRequest
+AsyncImage(
+    model = ImageRequest.Builder(LocalContext.current)
+        .data("https://example.com/image.jpg")
+        .crossfade(true)
+        .build(),
+    placeholder = painterResource(R.drawable.placeholder),
+    error = painterResource(R.drawable.error),
+    contentDescription = stringResource(R.string.product_description),
+    contentScale = ContentScale.Crop,
+    modifier = Modifier
+        .size(200.dp)
+        .clip(CircleShape)
+)
+```
+
+<Note>
+**AsyncImage Benefits:**
+- Automatically detects the size your image is loaded at
+- Loads images with appropriate dimensions for better performance
+- Supports all standard `Image` parameters
+- Simplest API for most use cases
+</Note>
+
+## Content Scale Options
+
+<Tabs>
+  <Tab title="Crop">
+    ```kotlin
+    AsyncImage(
+        model = imageUrl,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.size(200.dp)
+    )
+    ```
+    Scales and crops the image to fill the bounds.
+  </Tab>
+  <Tab title="Fit">
+    ```kotlin
+    AsyncImage(
+        model = imageUrl,
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.size(200.dp)
+    )
+    ```
+    Scales the image to fit inside the bounds while maintaining aspect ratio.
+  </Tab>
+  <Tab title="FillWidth">
+    ```kotlin
+    AsyncImage(
+        model = imageUrl,
+        contentDescription = null,
+        contentScale = ContentScale.FillWidth,
+        modifier = Modifier.fillMaxWidth()
+    )
+    ```
+    Scales the image to fill the width of the bounds.
+  </Tab>
+</Tabs>
+
+## Advanced: SubcomposeAsyncImage
+
+Use `SubcomposeAsyncImage` when you need custom slot APIs for different states (Loading, Success, Error).
+
+```kotlin SubcomposeAsyncImage
+SubcomposeAsyncImage(
+    model = "https://example.com/image.jpg",
+    contentDescription = "Product image",
+    loading = {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    },
+    error = {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Error,
+                contentDescription = "Error loading image",
+                tint = MaterialTheme.colorScheme.error
+            )
+        }
+    },
+    modifier = Modifier.size(200.dp)
+)
+```
+
+<Warning>
+**Performance Warning**
+
+Subcomposition is slower than regular composition. **Avoid using `SubcomposeAsyncImage` in performance-critical areas** like `LazyColumn` or `LazyRow`. Use `AsyncImage` with `placeholder` and `error` parameters instead.
+</Warning>
+
+## Low-Level Control: rememberAsyncImagePainter
+
+Use `rememberAsyncImagePainter` only when you need a `Painter` instead of a composable (e.g., for `Canvas` or `Icon`).
+
+```kotlin AsyncImagePainter
+val painter = rememberAsyncImagePainter(
+    model = ImageRequest.Builder(LocalContext.current)
+        .data("https://example.com/image.jpg")
+        .size(Size.ORIGINAL)
+        .build()
+)
+
+Image(
+    painter = painter,
+    contentDescription = "Custom image",
+    modifier = Modifier.size(200.dp)
+)
+```
+
+<Warning>
+**Size Detection Warning**
+
+`rememberAsyncImagePainter` does **not** detect the size your image is loaded at on screen and always loads the image with its original dimensions by default. This can cause performance issues.
+
+**Use `AsyncImage` unless a `Painter` is strictly required.**
+</Warning>
+
+## Image Transformations
+
+### Circular Images
+
+<CodeGroup>
+```kotlin Using Modifier
+AsyncImage(
+    model = userAvatarUrl,
+    contentDescription = "User avatar",
+    contentScale = ContentScale.Crop,
+    modifier = Modifier
+        .size(64.dp)
+        .clip(CircleShape)
+)
+```
+
+```kotlin Using Transformation
+AsyncImage(
+    model = ImageRequest.Builder(LocalContext.current)
+        .data(userAvatarUrl)
+        .transformations(CircleCropTransformation())
+        .build(),
+    contentDescription = "User avatar",
+    modifier = Modifier.size(64.dp)
+)
+```
+</CodeGroup>
+
+### Rounded Corners
+
+```kotlin Rounded Corners
+AsyncImage(
+    model = imageUrl,
+    contentDescription = null,
+    contentScale = ContentScale.Crop,
+    modifier = Modifier
+        .size(200.dp)
+        .clip(RoundedCornerShape(12.dp))
+)
+```
+
+## Common Use Cases
+
+### User Profile Avatar
+
+```kotlin Profile Avatar
+@Composable
+fun UserAvatar(
+    avatarUrl: String?,
+    userName: String,
+    modifier: Modifier = Modifier
+) {
+    AsyncImage(
+        model = ImageRequest.Builder(LocalContext.current)
+            .data(avatarUrl)
+            .crossfade(true)
+            .build(),
+        placeholder = painterResource(R.drawable.default_avatar),
+        error = painterResource(R.drawable.default_avatar),
+        contentDescription = "$userName's avatar",
+        contentScale = ContentScale.Crop,
+        modifier = modifier
+            .size(48.dp)
+            .clip(CircleShape)
+    )
+}
+```
+
+### Product Card in LazyColumn
+
+```kotlin Product Card
+@Composable
+fun ProductCard(
+    product: Product,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(16.dp)) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(product.imageUrl)
+                    .crossfade(true)
+                    .build(),
+                placeholder = painterResource(R.drawable.placeholder),
+                error = painterResource(R.drawable.error),
+                contentDescription = product.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            )
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column {
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = product.price,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+```
+
+<Note>
+For lists, always use `AsyncImage` with `placeholder` and `error` parameters instead of `SubcomposeAsyncImage` for better performance.
+</Note>
+
+### Image Gallery Grid
+
+```kotlin Image Grid
+@Composable
+fun ImageGallery(
+    images: List<String>,
+    modifier: Modifier = Modifier
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier
+    ) {
+        items(images) { imageUrl ->
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(imageUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(4.dp))
+            )
+        }
+    }
+}
+```
+
+## Performance Best Practices
+
+### 1. Use Singleton ImageLoader
+
+Use a single `ImageLoader` instance for the entire app to share disk and memory cache.
+
+```kotlin Custom ImageLoader
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        
+        val imageLoader = ImageLoader.Builder(this)
+            .crossfade(true)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.25)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(512L * 1024 * 1024) // 512MB
+                    .build()
+            }
+            .build()
+            
+        Coil.setImageLoader(imageLoader)
+    }
+}
+```
+
+### 2. Enable Crossfade
+
+Always enable `crossfade(true)` for smoother transitions.
+
+```kotlin Crossfade Example
+AsyncImage(
+    model = ImageRequest.Builder(LocalContext.current)
+        .data(imageUrl)
+        .crossfade(true) // Smooth transition
+        .build(),
+    contentDescription = null
+)
+```
+
+### 3. Set Appropriate ContentScale
+
+Ensure `contentScale` is set appropriately to avoid loading larger images than necessary.
+
+```kotlin Efficient ContentScale
+AsyncImage(
+    model = imageUrl,
+    contentDescription = null,
+    contentScale = ContentScale.Crop, // Crop to fit bounds
+    modifier = Modifier.size(200.dp)
+)
+```
+
+### 4. Avoid SubcomposeAsyncImage in Lists
+
+<CodeGroup>
+```kotlin DO: Use AsyncImage
+LazyColumn {
+    items(products) { product ->
+        AsyncImage(
+            model = product.imageUrl,
+            placeholder = painterResource(R.drawable.placeholder),
+            error = painterResource(R.drawable.error),
+            contentDescription = product.name
+        )
+    }
+}
+```
+
+```kotlin DON'T: Use SubcomposeAsyncImage
+LazyColumn {
+    items(products) { product ->
+        // Slower performance
+        SubcomposeAsyncImage(
+            model = product.imageUrl,
+            loading = { CircularProgressIndicator() },
+            contentDescription = product.name
+        )
+    }
+}
+```
+</CodeGroup>
+
+## Implementation Checklist
+
+- [ ] Prefer `AsyncImage` over other variants
+- [ ] Always provide meaningful `contentDescription` or set to `null` for decorative images
+- [ ] Use `crossfade(true)` for better UX
+- [ ] Avoid `SubcomposeAsyncImage` in lists
+- [ ] Configure `ImageRequest` for specific needs (transformations, headers, etc.)
+- [ ] Set appropriate `contentScale` for your use case
+- [ ] Use placeholder and error images for better UX
+- [ ] Configure singleton `ImageLoader` for cache optimization
+
+## When to Use Each Component
+
+| Component | Use Case |
+|-----------|----------|
+| `AsyncImage` | **Default choice** for most use cases |
+| `SubcomposeAsyncImage` | Custom loading/error states (avoid in lists) |
+| `rememberAsyncImagePainter` | Need a `Painter` for `Canvas` or `Icon` |
+
+## Related Skills
+
+- [Compose UI](/skills/compose-ui) - Learn Compose best practices
+- [XML to Compose Migration](/skills/xml-to-compose-migration) - Migrate ImageView to AsyncImage
+
+## References
+
+- [Coil Documentation](https://coil-kt.github.io/coil/)
+- [Coil Compose](https://coil-kt.github.io/coil/compose/)
+- [Image Loading Performance](https://developer.android.com/topic/performance/graphics)

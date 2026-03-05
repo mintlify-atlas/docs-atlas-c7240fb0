@@ -1,0 +1,404 @@
+---
+title: Compose Performance Audit
+description: Audit and optimize Jetpack Compose runtime performance, diagnose recomposition issues, and eliminate UI jank
+---
+
+## Overview
+
+The **Compose Performance Audit** skill provides end-to-end analysis of Jetpack Compose UI performance, from instrumentation and baselining to root-cause analysis and concrete optimization steps.
+
+**Use this skill when:**
+- Experiencing slow rendering or janky scrolling
+- Dealing with excessive recompositions
+- Investigating performance issues in Compose UI
+- Optimizing list performance in `LazyColumn`/`LazyRow`
+- Reducing frame drops and UI stuttering
+
+## Performance Issues Addressed
+
+The skill identifies and resolves these common Compose performance problems:
+
+- **Recomposition storms** from unstable parameters or broad state changes
+- **Unstable keys** in lazy lists causing unnecessary recompositions
+- **Heavy work during composition** (formatting, sorting, filtering)
+- **Missing `remember` blocks** causing recreations on every recomposition
+- **Large images** without proper sizing constraints
+- **Layout thrash** from deep nesting or intrinsic measurements
+- **Unnecessary state reads** in wrong composition phases
+
+## Identifying Performance Problems
+
+### Code-First Review
+
+Start by examining the code for common performance anti-patterns:
+
+```kotlin
+// Collect these items:
+// 1. Target Composable code
+// 2. Data flow (state, remember, derivedStateOf, ViewModel)
+// 3. Symptoms and reproduction steps
+```
+
+### Profiling Tools
+
+When code review is inconclusive, use these profiling tools:
+
+<Tip>
+Always profile on a **release build** with R8 enabled. Debug builds have significant overhead that skews results.
+</Tip>
+
+**Layout Inspector** — View recomposition counts in Android Studio:
+```
+View → Tool Windows → Layout Inspector
+Enable "Show Recomposition Counts"
+```
+
+**Recomposition Highlights** — Visual indicators in Compose tooling:
+```
+Settings → Experimental → Enable Compose Recomposition Highlights
+```
+
+**Perfetto/System Trace** — Frame timing analysis:
+```bash
+adb shell perfetto -o /data/local/tmp/trace.perfetto -t 10s \
+  sched freq idle am wm gfx view binder_driver hal dalvik camera input res
+```
+
+**Macrobenchmark** — Startup and scroll metrics:
+```kotlin
+@Test
+fun scrollBenchmark() {
+    benchmarkRule.measureRepeated(
+        packageName = "com.example.app",
+        metrics = listOf(FrameTimingMetric()),
+        iterations = 5,
+        setupBlock = { pressHome() }
+    ) {
+        startActivityAndWait()
+        device.findObject(By.res("list")).scroll(Direction.DOWN, 0.8f)
+    }
+}
+```
+
+## Optimization Patterns
+
+### 1. Stabilize Lambda Captures
+
+**Problem:** New lambda instances created on every recomposition
+
+```kotlin
+// ❌ BAD: Creates new lambda every recomposition
+@Composable
+fun ItemCard(item: Item, viewModel: ItemViewModel) {
+    Button(onClick = { viewModel.onItemClick(item) }) {
+        Text("Click me")
+    }
+}
+
+// ✅ GOOD: Remember the lambda with dependencies
+@Composable
+fun ItemCard(item: Item, viewModel: ItemViewModel) {
+    val onClick = remember(item.id) { 
+        { viewModel.onItemClick(item) } 
+    }
+    Button(onClick = onClick) {
+        Text("Click me")
+    }
+}
+```
+
+### 2. Avoid Expensive Work in Composition
+
+**Problem:** Sorting, filtering, or formatting runs on every recomposition
+
+```kotlin
+// ❌ BAD: Sorting happens every recomposition
+@Composable
+fun ItemList(items: List<Item>) {
+    val sorted = items.sortedBy { it.name } // Expensive!
+    LazyColumn {
+        items(sorted) { item ->
+            ItemRow(item)
+        }
+    }
+}
+
+// ✅ GOOD: Cache computation with remember
+@Composable
+fun ItemList(items: List<Item>) {
+    val sorted = remember(items) { 
+        items.sortedBy { it.name } 
+    }
+    LazyColumn {
+        items(sorted, key = { it.id }) { item ->
+            ItemRow(item)
+        }
+    }
+}
+```
+
+### 3. Use Stable Keys in Lazy Lists
+
+**Problem:** Index-based identity causes full recomposition on list changes
+
+<Warning>
+Without proper `key` parameters, `LazyColumn` cannot efficiently reuse compositions when items are added, removed, or reordered.
+</Warning>
+
+```kotlin
+// ❌ BAD: No key — uses index-based identity
+LazyColumn {
+    items(items) { item -> 
+        ItemRow(item) 
+    }
+}
+
+// ✅ GOOD: Stable key enables efficient recomposition
+LazyColumn {
+    items(
+        items = items,
+        key = { it.id } // Stable, unique identifier
+    ) { item ->
+        ItemRow(item)
+    }
+}
+```
+
+### 4. Stabilize Data Classes
+
+**Problem:** Unstable parameters cause unnecessary recompositions
+
+```kotlin
+// ❌ BAD: List is not a stable type
+data class UiState(
+    val items: List<Item>,
+    val isLoading: Boolean
+)
+
+// ✅ GOOD: Use @Immutable for truly immutable data
+@Immutable
+data class UiState(
+    val items: ImmutableList<Item>, // kotlinx.collections.immutable
+    val isLoading: Boolean
+)
+
+// Or use @Stable if state is externally stable
+@Stable
+data class UiState(
+    val items: List<Item>,
+    val isLoading: Boolean
+)
+```
+
+**Stability Reference:**
+
+| Type | Stable by Default? | Fix |
+|------|-------------------:|-----|
+| Primitives (`Int`, `String`, `Boolean`) | ✅ Yes | N/A |
+| `data class` with stable fields | ✅ Yes* | Ensure all fields are stable |
+| `List`, `Map`, `Set` | ❌ No | Use `ImmutableList` or `@Stable` |
+| Classes with `var` properties | ❌ No | Use `@Stable` if externally managed |
+| Lambdas | ❌ No | Use `remember { }` |
+
+### 5. Defer State Reads to Later Phases
+
+**Problem:** Reading state during composition recomposes entire tree
+
+```kotlin
+// ❌ BAD: State read during composition
+@Composable
+fun AnimatedBox(scrollState: ScrollState) {
+    val offset = scrollState.value // Recomposes on every scroll!
+    Box(
+        modifier = Modifier.offset(y = offset.dp)
+    ) {
+        Content()
+    }
+}
+
+// ✅ GOOD: Defer read to layout phase
+@Composable
+fun AnimatedBox(scrollState: ScrollState) {
+    Box(
+        modifier = Modifier.offset {
+            IntOffset(0, scrollState.value) // Read in layout phase
+        }
+    ) {
+        Content()
+    }
+}
+```
+
+### 6. Remember Modifier Chains
+
+**Problem:** Creating new Modifier instances on every recomposition
+
+```kotlin
+// ❌ BAD: New modifier chain every recomposition
+@Composable
+fun Card(color: Color) {
+    Box(
+        modifier = Modifier
+            .padding(16.dp)
+            .background(color)
+            .clip(RoundedCornerShape(8.dp))
+    ) { ... }
+}
+
+// ✅ GOOD: Remember the modifier when dynamic
+@Composable
+fun Card(color: Color) {
+    val modifier = remember(color) {
+        Modifier
+            .padding(16.dp)
+            .background(color)
+            .clip(RoundedCornerShape(8.dp))
+    }
+    Box(modifier = modifier) { ... }
+}
+```
+
+### 7. Async Image Loading with Sizing
+
+**Problem:** Large images without constraints cause expensive layout passes
+
+```kotlin
+// ❌ BAD: No size constraint, loads full resolution
+AsyncImage(
+    model = imageUrl,
+    contentDescription = null
+)
+
+// ✅ GOOD: Constrain size and use proper scaling
+AsyncImage(
+    model = imageUrl,
+    contentDescription = null,
+    modifier = Modifier
+        .size(120.dp)
+        .clip(RoundedCornerShape(8.dp)),
+    contentScale = ContentScale.Crop
+)
+```
+
+## Measurement Techniques
+
+### Recomposition Counting
+
+Add logging to track recomposition frequency:
+
+```kotlin
+class Ref(var value: Int)
+
+@Composable
+fun LogCompositions(tag: String) {
+    val ref = remember { Ref(0) }
+    SideEffect { ref.value++ }
+    Log.d(tag, "Compositions: ${ref.value}")
+}
+
+@Composable
+fun MyScreen() {
+    LogCompositions("MyScreen")
+    // Rest of composable
+}
+```
+
+### Layout Inspector Analysis
+
+1. Open Layout Inspector in Android Studio
+2. Select your running app
+3. Enable "Show Recomposition Counts"
+4. Interact with your UI
+5. Look for components with high recomposition counts (>10 during normal interaction)
+
+### Baseline Metrics Template
+
+```markdown
+## Performance Baseline
+
+### Before Optimization
+- Recomposition count (ItemList): 847/s during scroll
+- Frame drops: 23% of frames > 16ms
+- Average frame time: 19.4ms
+- Janky frames: 156/500
+
+### After Optimization
+- Recomposition count (ItemList): 12/s during scroll
+- Frame drops: 2% of frames > 16ms
+- Average frame time: 11.2ms
+- Janky frames: 8/500
+
+### Changes Applied
+- Added stable keys to LazyColumn
+- Moved sorting to remember block
+- Stabilized UiState with @Immutable
+- Deferred scroll offset reads to layout phase
+```
+
+## Best Practices
+
+<Tip>
+**Extract stable composables**: Break large composables into smaller, independently stable pieces that can skip recomposition.
+</Tip>
+
+1. **Use `derivedStateOf` for computed state**
+   ```kotlin
+   val isScrolledPastThreshold by remember {
+       derivedStateOf { scrollState.value > 100 }
+   }
+   ```
+
+2. **Skip recomposition with `key()`**
+   ```kotlin
+   key(userId) { // Recompose only when userId changes
+       UserProfile(userId)
+   }
+   ```
+
+3. **Flatten layout hierarchies**
+   ```kotlin
+   // ❌ Deep nesting
+   Column { Box { Row { Column { ... } } } }
+   
+   // ✅ Flattened with constraint layout or custom layout
+   ConstraintLayout { ... }
+   ```
+
+4. **Use `movableContentOf` for expensive content**
+   ```kotlin
+   val expensiveContent = remember {
+       movableContentOf {
+           ExpensiveComposable()
+       }
+   }
+   ```
+
+<Warning>
+Avoid `SubcomposeLayout` for simple cases — it has performance overhead. Use only when truly needed for measuring before layout.
+</Warning>
+
+## Verification Workflow
+
+After applying optimizations:
+
+1. **Re-run Layout Inspector** — Compare recomposition counts
+2. **Run Macrobenchmark** — Compare frame timing metrics
+3. **Test on real device** — Always validate on physical hardware with release build
+4. **Check System Trace** — Verify reduced composition time in Perfetto
+
+**Success Criteria:**
+- Recomposition count reduced by >70% during typical interactions
+- Frame drops &lt;5% (target: 60fps = 16.67ms per frame)
+- No visible stuttering during scrolling or animations
+
+## Related Skills
+
+- [Gradle Build Performance](/skills/gradle-build-performance) — Optimize build times
+- [Android Testing](/skills/android-testing) — Verify performance improvements
+
+## References
+
+- [Jetpack Compose Performance](https://developer.android.com/develop/ui/compose/performance)
+- [Compose Stability Explained](https://developer.android.com/develop/ui/compose/performance/stability)
+- [Debugging Recomposition](https://developer.android.com/develop/ui/compose/tooling/layout-inspector)
+- [Macrobenchmark Guide](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview)

@@ -1,122 +1,95 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Awesome Android Agent Skills",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#94cb04",
+    "light": "#545454",
+    "dark": "#94cb04"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/favicon.png",
+  "logo": {
+    "light": "/logo-light.png",
+    "dark": "/logo-light.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/new-silvermoon/awesome-android-agent-skills"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/new-silvermoon/awesome-android-agent-skills"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "usage"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Architecture & State",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "skills/android-architecture",
+              "skills/android-viewmodel",
+              "skills/android-data-layer"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "UI Development",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "skills/compose-ui",
+              "skills/compose-navigation",
+              "skills/xml-to-compose-migration",
+              "skills/coil-compose"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Quality & Testing",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "skills/android-accessibility",
+              "skills/android-testing"
+            ]
+          },
+          {
+            "group": "Performance",
+            "pages": [
+              "skills/compose-performance-audit",
+              "skills/gradle-build-performance"
+            ]
+          },
+          {
+            "group": "Advanced Topics",
+            "pages": [
+              "skills/kotlin-concurrency-expert",
+              "skills/android-retrofit",
+              "skills/android-gradle-logic",
+              "skills/android-emulator-skill"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Resources",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Additional Resources",
             "pages": [
-              "api-reference/introduction"
-            ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "resources/creating-custom-skills",
+              "resources/faq"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

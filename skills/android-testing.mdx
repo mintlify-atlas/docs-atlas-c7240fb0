@@ -1,0 +1,607 @@
+---
+title: Android Testing
+description: Comprehensive testing strategies for modern Android apps, covering unit tests, Hilt integration tests, and screenshot testing with Roborazzi.
+---
+
+## Overview
+
+A solid testing strategy is essential for building reliable Android applications. This guide covers testing approaches inspired by Google's "Now in Android" sample, including unit tests, Hilt integration tests, and screenshot testing with Roborazzi.
+
+## Testing Pyramid
+
+Follow the testing pyramid for an effective test suite:
+
+```
+        /\
+       /  \    UI/Screenshot Tests
+      /    \   (Few, slow, high-level)
+     /------\
+    /        \  Integration Tests
+   /          \ (Some, medium speed)
+  /------------\
+ /              \ Unit Tests
+/________________\ (Many, fast, focused)
+```
+
+1. **Unit Tests**: Fast, isolated tests for business logic (ViewModels, Repositories, Use Cases)
+2. **Integration Tests**: Test component interactions (Room DAOs with database, Retrofit with MockWebServer)
+3. **UI/Screenshot Tests**: Verify UI correctness and prevent visual regressions (Compose UI)
+
+## Dependencies Setup
+
+Add these testing dependencies to your `libs.versions.toml`:
+
+```toml
+[versions]
+kotlinxCoroutines = "1.7.3"
+hilt = "2.48"
+roborazzi = "1.7.0"
+
+[libraries]
+# Unit testing
+junit4 = { module = "junit:junit", version = "4.13.2" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+
+# Android testing
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version = "1.1.5" }
+espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version = "3.5.1" }
+compose-ui-test = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+
+# Hilt testing
+hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
+
+# Screenshot testing
+roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
+
+[plugins]
+roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
+```
+
+In your module's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    // Unit tests
+    testImplementation(libs.junit4)
+    testImplementation(libs.kotlinx.coroutines.test)
+    
+    // Android instrumented tests
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.compose.ui.test)
+    
+    // Hilt testing
+    androidTestImplementation(libs.hilt.android.testing)
+    kaptAndroidTest(libs.hilt.android.compiler)
+    
+    // Screenshot testing
+    testImplementation(libs.roborazzi)
+}
+```
+
+## Unit Testing
+
+Unit tests are fast, focused tests that verify individual components in isolation.
+
+### Testing ViewModels
+
+```kotlin
+class ArticleViewModelTest {
+    
+    @get:Rule
+    val dispatcherRule = MainDispatcherRule()
+    
+    private val mockRepository = mockk<ArticleRepository>()
+    private lateinit var viewModel: ArticleViewModel
+    
+    @Before
+    fun setup() {
+        viewModel = ArticleViewModel(mockRepository)
+    }
+    
+    @Test
+    fun `when articles loaded, uiState shows success`() = runTest {
+        // Given
+        val articles = listOf(
+            Article(id = 1, title = "Test Article")
+        )
+        coEvery { mockRepository.getArticles() } returns flowOf(articles)
+        
+        // When
+        viewModel.loadArticles()
+        
+        // Then
+        val state = viewModel.uiState.value
+        assertThat(state).isInstanceOf(UiState.Success::class.java)
+        assertThat((state as UiState.Success).data).isEqualTo(articles)
+    }
+    
+    @Test
+    fun `when repository throws error, uiState shows error`() = runTest {
+        // Given
+        coEvery { mockRepository.getArticles() } throws Exception("Network error")
+        
+        // When
+        viewModel.loadArticles()
+        
+        // Then
+        assertThat(viewModel.uiState.value).isInstanceOf(UiState.Error::class.java)
+    }
+}
+```
+
+### Testing Use Cases
+
+```kotlin
+class GetUserPreferencesUseCaseTest {
+    
+    private val mockDataStore = mockk<PreferencesDataStore>()
+    private lateinit var useCase: GetUserPreferencesUseCase
+    
+    @Before
+    fun setup() {
+        useCase = GetUserPreferencesUseCase(mockDataStore)
+    }
+    
+    @Test
+    fun `returns user preferences from data store`() = runTest {
+        // Given
+        val expected = UserPreferences(theme = Theme.DARK)
+        every { mockDataStore.userPreferences } returns flowOf(expected)
+        
+        // When
+        val result = useCase().first()
+        
+        // Then
+        assertThat(result).isEqualTo(expected)
+    }
+}
+```
+
+## Integration Testing
+
+Integration tests verify that multiple components work together correctly.
+
+### Testing Room DAOs
+
+```kotlin
+@HiltAndroidTest
+class ArticleDaoTest {
+    
+    @get:Rule
+    var hiltRule = HiltAndroidRule(this)
+    
+    @Inject
+    lateinit var database: AppDatabase
+    private lateinit var articleDao: ArticleDao
+    
+    @Before
+    fun init() {
+        hiltRule.inject()
+        articleDao = database.articleDao()
+    }
+    
+    @After
+    fun cleanup() {
+        database.close()
+    }
+    
+    @Test
+    fun insertAndRetrieveArticle() = runTest {
+        // Given
+        val article = ArticleEntity(
+            id = 1,
+            title = "Test Article",
+            content = "Test content"
+        )
+        
+        // When
+        articleDao.insert(article)
+        val retrieved = articleDao.getArticleById(1).first()
+        
+        // Then
+        assertThat(retrieved).isEqualTo(article)
+    }
+    
+    @Test
+    fun deleteArticle() = runTest {
+        // Given
+        val article = ArticleEntity(id = 1, title = "Test")
+        articleDao.insert(article)
+        
+        // When
+        articleDao.delete(article)
+        val result = articleDao.getArticleById(1).first()
+        
+        // Then
+        assertThat(result).isNull()
+    }
+}
+```
+
+### Testing with MockWebServer
+
+```kotlin
+class ArticleApiTest {
+    
+    private lateinit var mockWebServer: MockWebServer
+    private lateinit var api: ArticleApi
+    
+    @Before
+    fun setup() {
+        mockWebServer = MockWebServer()
+        mockWebServer.start()
+        
+        val retrofit = Retrofit.Builder()
+            .baseUrl(mockWebServer.url("/"))
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            
+        api = retrofit.create(ArticleApi::class.java)
+    }
+    
+    @After
+    fun teardown() {
+        mockWebServer.shutdown()
+    }
+    
+    @Test
+    fun `fetch articles returns list`() = runTest {
+        // Given
+        val response = """
+            {
+                "articles": [
+                    {"id": 1, "title": "Article 1"},
+                    {"id": 2, "title": "Article 2"}
+                ]
+            }
+        """.trimIndent()
+        
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(response)
+        )
+        
+        // When
+        val result = api.getArticles()
+        
+        // Then
+        assertThat(result.articles).hasSize(2)
+        assertThat(result.articles[0].title).isEqualTo("Article 1")
+    }
+}
+```
+
+## Hilt Testing
+
+Hilt provides `HiltAndroidRule` and `@HiltAndroidTest` for dependency injection in tests.
+
+<Steps>
+  <Step title="Add Hilt test dependency">
+    ```kotlin
+    androidTestImplementation(libs.hilt.android.testing)
+    kaptAndroidTest(libs.hilt.android.compiler)
+    ```
+  </Step>
+  
+  <Step title="Annotate test class">
+    ```kotlin
+    @HiltAndroidTest
+    class MyFeatureTest {
+        @get:Rule
+        var hiltRule = HiltAndroidRule(this)
+        
+        // Test code
+    }
+    ```
+  </Step>
+  
+  <Step title="Inject dependencies">
+    ```kotlin
+    @Inject
+    lateinit var repository: ArticleRepository
+    
+    @Before
+    fun init() {
+        hiltRule.inject()
+    }
+    ```
+  </Step>
+</Steps>
+
+### Replacing Modules in Tests
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object TestDatabaseModule {
+    
+    @Provides
+    @Singleton
+    fun provideInMemoryDatabase(
+        @ApplicationContext context: Context
+    ): AppDatabase = Room.inMemoryDatabaseBuilder(
+        context,
+        AppDatabase::class.java
+    ).allowMainThreadQueries().build()
+}
+
+@HiltAndroidTest
+@UninstallModules(DatabaseModule::class) // Replace production module
+class ArticleFeatureTest {
+    // Uses in-memory database instead of production database
+}
+```
+
+## Screenshot Testing with Roborazzi
+
+Screenshot tests ensure your UI doesn't regress visually. Roborazzi runs on the JVM (fast) without needing an emulator or device.
+
+<Steps>
+  <Step title="Add Roborazzi plugin">
+    In `libs.versions.toml`:
+    ```toml
+    [versions]
+    roborazzi = "1.7.0"
+    
+    [plugins]
+    roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
+    ```
+  </Step>
+  
+  <Step title="Apply plugin to module">
+    In your module's `build.gradle.kts`:
+    ```kotlin
+    plugins {
+        alias(libs.plugins.roborazzi)
+    }
+    ```
+  </Step>
+  
+  <Step title="Add test dependency">
+    ```kotlin
+    dependencies {
+        testImplementation(libs.roborazzi)
+    }
+    ```
+  </Step>
+</Steps>
+
+### Writing Screenshot Tests
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [33], qualifiers = RobolectricDeviceQualifiers.Pixel5)
+class ArticleScreenScreenshotTest {
+    
+    @get:Rule
+    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+    
+    @Test
+    fun articleScreen_loading() {
+        composeTestRule.setContent {
+            AppTheme {
+                ArticleScreen(
+                    uiState = ArticleUiState.Loading
+                )
+            }
+        }
+        
+        composeTestRule.onRoot()
+            .captureRoboImage("article_screen_loading.png")
+    }
+    
+    @Test
+    fun articleScreen_success() {
+        composeTestRule.setContent {
+            AppTheme {
+                ArticleScreen(
+                    uiState = ArticleUiState.Success(
+                        articles = listOf(
+                            Article(id = 1, title = "Test Article")
+                        )
+                    )
+                )
+            }
+        }
+        
+        composeTestRule.onRoot()
+            .captureRoboImage("article_screen_success.png")
+    }
+    
+    @Test
+    fun articleScreen_darkTheme() {
+        composeTestRule.setContent {
+            AppTheme(darkTheme = true) {
+                ArticleScreen(
+                    uiState = ArticleUiState.Success(
+                        articles = sampleArticles
+                    )
+                )
+            }
+        }
+        
+        composeTestRule.onRoot()
+            .captureRoboImage("article_screen_dark.png")
+    }
+}
+```
+
+### Testing Individual Composables
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [33])
+class ArticleCardScreenshotTest {
+    
+    @get:Rule
+    val composeTestRule = createComposeRule()
+    
+    @Test
+    fun articleCard_default() {
+        composeTestRule.setContent {
+            AppTheme {
+                ArticleCard(
+                    article = Article(
+                        id = 1,
+                        title = "Sample Article",
+                        author = "John Doe",
+                        publishDate = "2024-01-15"
+                    ),
+                    onClick = {}
+                )
+            }
+        }
+        
+        composeTestRule.onNodeWithTag("article_card")
+            .captureRoboImage()
+    }
+}
+```
+
+<Accordion title="Roborazzi Configuration Options">
+  ```kotlin
+  @Config(
+      sdk = [33], // Android SDK version
+      qualifiers = RobolectricDeviceQualifiers.Pixel5, // Device config
+      application = HiltTestApplication::class // For Hilt
+  )
+  @GraphicsMode(GraphicsMode.Mode.NATIVE) // Better rendering
+  class MyScreenshotTest {
+      // Capture with custom options
+      composeTestRule.onRoot()
+          .captureRoboImage(
+              filePath = "screenshots/my_screen.png",
+              roborazziOptions = RoborazziOptions(
+                  compareOptions = CompareOptions(
+                      threshold = 0.01 // 1% difference allowed
+                  ),
+                  recordOptions = RecordOptions(
+                      resizeScale = 0.5 // Half size for faster tests
+                  )
+              )
+          )
+  }
+  ```
+</Accordion>
+
+## Running Tests
+
+### Command Line
+
+```bash
+# Run all unit tests
+./gradlew test
+
+# Run unit tests for specific module
+./gradlew :app:testDebugUnitTest
+
+# Run all Android instrumented tests
+./gradlew connectedAndroidTest
+
+# Record new screenshots (baseline)
+./gradlew recordRoborazziDebug
+
+# Verify screenshots match baseline
+./gradlew verifyRoborazziDebug
+
+# Compare and generate diff report
+./gradlew compareRoborazziDebug
+
+# Run tests with coverage
+./gradlew testDebugUnitTestCoverage
+```
+
+### Android Studio
+
+<Steps>
+  <Step title="Run single test">
+    Click the green play button next to the test method or class.
+  </Step>
+  
+  <Step title="Run with coverage">
+    Right-click test > "Run with Coverage" to see code coverage report.
+  </Step>
+  
+  <Step title="View test results">
+    Check the "Run" panel at the bottom for test results and failures.
+  </Step>
+</Steps>
+
+## Test Best Practices
+
+<Accordion title="Writing Effective Unit Tests">
+  - **Arrange-Act-Assert**: Structure tests clearly with Given-When-Then or Arrange-Act-Assert
+  - **One assertion per test**: Focus each test on a single behavior
+  - **Descriptive names**: Use backticks for readable test names: \`when user clicks button, navigate to details\`
+  - **Mock external dependencies**: Use MockK or Mockito to isolate the unit under test
+  - **Test edge cases**: Null values, empty lists, error states, etc.
+</Accordion>
+
+<Accordion title="Integration Test Guidelines">
+  - **Use real implementations**: Test actual Room database, real Retrofit setup
+  - **Clean state**: Reset database/server state before each test
+  - **Test interactions**: Verify components work together correctly
+  - **Reasonable scope**: Don't test the entire app - focus on specific integrations
+</Accordion>
+
+<Accordion title="Screenshot Test Tips">
+  - **Test multiple states**: Loading, success, error, empty states
+  - **Test themes**: Light and dark theme variations
+  - **Test different configurations**: Different screen sizes, font scales, locales
+  - **Keep tests fast**: Use JVM-based Roborazzi instead of instrumented tests
+  - **Review diffs carefully**: Check generated diff images when tests fail
+  - **Version control baselines**: Commit screenshot baselines to git
+</Accordion>
+
+## Continuous Integration
+
+Integrate tests into your CI pipeline:
+
+```yaml
+# GitHub Actions example
+name: Android CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          
+      - name: Run unit tests
+        run: ./gradlew test
+        
+      - name: Verify screenshots
+        run: ./gradlew verifyRoborazziDebug
+        
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: '**/build/reports/tests/'
+          
+      - name: Upload screenshot diffs
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: roborazzi-diffs
+          path: '**/build/outputs/roborazzi/'
+```
+
+## Resources
+
+- [Now in Android Testing](https://github.com/android/nowinandroid/tree/main/core/testing)
+- [Android Testing Codelab](https://developer.android.com/codelabs/advanced-android-kotlin-training-testing-basics)
+- [Roborazzi Documentation](https://github.com/takahirom/roborazzi)
+- [Hilt Testing Guide](https://developer.android.com/training/dependency-injection/hilt-testing)

@@ -1,0 +1,318 @@
+---
+title: Android Accessibility
+description: Expert checklist and guidance for auditing and fixing Android accessibility issues in Jetpack Compose apps.
+---
+
+## Overview
+
+Accessibility ensures your Android app is usable by everyone, including users with disabilities. This guide provides a comprehensive checklist for auditing and fixing accessibility issues in Jetpack Compose applications, with a focus on screen reader support (TalkBack) and inclusive design.
+
+## Accessibility Checklist
+
+### 1. Content Descriptions
+
+Every visual element that conveys information must be accessible to screen readers.
+
+**Check**: Do `Image` and `Icon` composables have a meaningful `contentDescription`?
+
+```kotlin
+// Good - Descriptive content description
+Icon(
+    imageVector = Icons.Default.Favorite,
+    contentDescription = "Add to favorites"
+)
+
+// Good - Decorative image
+Image(
+    painter = painterResource(R.drawable.decorative_pattern),
+    contentDescription = null // Purely decorative
+)
+
+// Bad - Missing content description for informative icon
+Icon(
+    imageVector = Icons.Default.Warning,
+    contentDescription = "" // Empty or missing!
+)
+```
+
+<Accordion title="Best Practices for Content Descriptions">
+  - **Actionable elements**: Describe the *action*, not the icon appearance
+    - Good: "Play music", "Share article"
+    - Bad: "Triangle icon", "Arrow pointing right"
+  - **Decorative elements**: Use `contentDescription = null` to hide from screen readers
+  - **Informative images**: Describe the information conveyed, not the visual details
+  - **Keep it concise**: Screen readers already announce the element type ("button", "image")
+</Accordion>
+
+### 2. Touch Target Size
+
+All interactive elements must be large enough to tap comfortably.
+
+**Standard**: Minimum **48x48dp** for all interactive elements (Material Design guideline).
+
+```kotlin
+// Small icon that needs larger touch target
+IconButton(
+    onClick = { /* action */ },
+    modifier = Modifier.size(48.dp) // Ensures minimum touch target
+) {
+    Icon(
+        imageVector = Icons.Default.Close,
+        contentDescription = "Close",
+        modifier = Modifier.size(24.dp) // Visual size
+    )
+}
+
+// Custom clickable element with padding
+Box(
+    modifier = Modifier
+        .clickable { /* action */ }
+        .padding(12.dp) // Adds to touch target size
+        .size(24.dp)
+) {
+    Icon(
+        imageVector = Icons.Default.Star,
+        contentDescription = "Rate item"
+    )
+}
+```
+
+<Steps>
+  <Step title="Check element size">
+    Verify that clickable elements are at least 48x48dp using Layout Inspector or measuring tools.
+  </Step>
+  
+  <Step title="Apply MinimumInteractiveComponentSize">
+    Use `Modifier.minimumInteractiveComponentSize()` for Material components:
+    
+    ```kotlin
+    Icon(
+        imageVector = Icons.Default.Info,
+        contentDescription = "Information",
+        modifier = Modifier
+            .clickable { /* action */ }
+            .minimumInteractiveComponentSize()
+    )
+    ```
+  </Step>
+  
+  <Step title="Add padding for custom elements">
+    Wrap small visual elements in a Box with adequate padding to reach 48dp.
+  </Step>
+</Steps>
+
+### 3. Color Contrast
+
+Text and interactive elements must have sufficient contrast against their backgrounds.
+
+**Standards**:
+- **WCAG AA**: 4.5:1 for normal text, 3.0:1 for large text (18sp+) and icons
+- **WCAG AAA**: 7:1 for normal text, 4.5:1 for large text
+
+```kotlin
+// Good - High contrast
+Text(
+    text = "Important Message",
+    color = Color.Black, // Contrast ratio ~21:1
+    modifier = Modifier.background(Color.White)
+)
+
+// Problematic - Low contrast
+Text(
+    text = "Subtle hint",
+    color = Color.LightGray, // May fail contrast check
+    modifier = Modifier.background(Color.White)
+)
+
+// Better - Use theme colors designed for accessibility
+Text(
+    text = "Accessible text",
+    color = MaterialTheme.colorScheme.onSurface,
+    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+)
+```
+
+<Accordion title="Tools for Checking Color Contrast">
+  - **Android Accessibility Scanner**: On-device tool to check running apps
+  - **WebAIM Contrast Checker**: https://webaim.org/resources/contrastchecker/
+  - **Material Design Color Tool**: https://material.io/resources/color/
+  - **Chrome DevTools**: Color Picker includes contrast ratio
+  - Use Material Theme colors - they're designed with accessibility in mind
+</Accordion>
+
+### 4. Focus & Semantics
+
+Screen readers and keyboard navigation rely on proper focus order and semantic information.
+
+#### Focus Order
+
+Ensure focus moves logically through your UI (typically top-to-bottom, start-to-end).
+
+```kotlin
+@Composable
+fun AccessibleForm() {
+    Column {
+        // Focus flows naturally top to bottom
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Name") }
+        )
+        
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email") }
+        )
+        
+        Button(onClick = { submit() }) {
+            Text("Submit")
+        }
+    }
+}
+```
+
+#### Semantic Grouping
+
+Group related elements so screen readers announce them as a single unit.
+
+```kotlin
+// Without grouping - announces each element separately
+Row {
+    Icon(Icons.Default.Star, contentDescription = "Rating")
+    Text("4.5")
+    Text("out of 5")
+}
+
+// With grouping - announces as one item
+Row(
+    modifier = Modifier.semantics(mergeDescendants = true) {}
+) {
+    Icon(Icons.Default.Star, contentDescription = null) // Merged into parent
+    Text("4.5 out of 5 stars")
+}
+```
+
+#### State Descriptions
+
+Describe custom states for screen reader users.
+
+```kotlin
+@Composable
+fun CustomToggle(checked: Boolean, onToggle: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .toggleable(
+                value = checked,
+                onValueChange = { onToggle() }
+            )
+            .semantics {
+                stateDescription = if (checked) "On" else "Off"
+            }
+    ) {
+        Icon(
+            imageVector = if (checked) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
+            contentDescription = "Notifications"
+        )
+    }
+}
+```
+
+<Accordion title="Advanced Semantic Properties">
+  ```kotlin
+  Modifier.semantics {
+      // Custom role
+      role = Role.Button
+      
+      // Custom state
+      stateDescription = "Expanded"
+      
+      // Custom actions
+      customActions = listOf(
+          CustomAccessibilityAction("Reply") { /* action */ },
+          CustomAccessibilityAction("Delete") { /* action */ }
+      )
+      
+      // Heading for navigation
+      heading()
+      
+      // Merge descendants
+      mergeDescendants = true
+  }
+  ```
+</Accordion>
+
+### 5. Headings
+
+Mark section titles as headings to allow screen reader users to navigate by structure.
+
+```kotlin
+@Composable
+fun ContentScreen() {
+    Column {
+        // Section heading
+        Text(
+            text = "Recent Articles",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.semantics { heading() }
+        )
+        
+        ArticleList()
+        
+        // Another section heading
+        Text(
+            text = "Popular Topics",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.semantics { heading() }
+        )
+        
+        TopicGrid()
+    }
+}
+```
+
+**Benefits**:
+- Screen reader users can jump between sections using heading navigation
+- Creates a logical document structure
+- Improves navigation efficiency for long screens
+
+## TalkBack Optimization Tips
+
+<Steps>
+  <Step title="Test with TalkBack enabled">
+    Enable TalkBack in Settings > Accessibility > TalkBack and navigate through your app.
+  </Step>
+  
+  <Step title="Verify announcements are clear">
+    Each element should announce:
+    - What it is (role: button, text, etc.)
+    - What it contains (label/content description)
+    - Current state (checked, selected, expanded, etc.)
+  </Step>
+  
+  <Step title="Test navigation flow">
+    Swipe right/left to move through elements. The order should be logical and match visual layout.
+  </Step>
+  
+  <Step title="Test actions">
+    Double-tap to activate elements. Verify all interactive elements respond correctly.
+  </Step>
+</Steps>
+
+## Common Accessibility Prompts
+
+Use these prompts when working with AI agents on accessibility:
+
+- "Analyze the content description of this Image. Is it appropriate?"
+- "Check if the touch target size of this button is at least 48dp."
+- "Does this custom toggle button report its 'Checked' state to TalkBack?"
+- "Review this screen for accessibility issues and suggest fixes."
+- "Add semantic headings to this content layout."
+- "Improve the focus order for keyboard navigation in this form."
+
+## Resources
+
+- [Android Accessibility Guide](https://developer.android.com/guide/topics/ui/accessibility)
+- [Compose Accessibility](https://developer.android.com/jetpack/compose/accessibility)
+- [Material Design Accessibility](https://m3.material.io/foundations/accessible-design/overview)
+- [WCAG Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)

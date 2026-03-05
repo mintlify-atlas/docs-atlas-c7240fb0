@@ -1,80 +1,174 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get up and running with Agent Skills in minutes
 ---
 
-## Get started in three steps
+## Installation
 
-Get your documentation site running locally and make your first customization.
+To equip your AI agent with these skills, you must place them in a location where the agent can discover them.
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Copy the skills directory">
+    The industry standard location for agent skills is the `.github/skills/` directory at the root of your workspace.
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    Copy the `.github/skills/` folder from the [Awesome Android Agent Skills repository](https://github.com/yourusername/awesome-android-agent-skills) to your project's root.
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    ```bash
+    # Clone the repository
+    git clone https://github.com/yourusername/awesome-android-agent-skills.git
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    # Copy skills to your project
+    cp -r awesome-android-agent-skills/.github/skills my-android-project/.github/
+    ```
+  </Step>
+  
+  <Step title="Verify the structure">
+    Ensure your project structure looks like this:
+    
+    ```text
+    my-android-project/
+    ├── .github/
+    │   └── skills/
+    │       ├── android-architecture/
+    │       │   └── SKILL.md
+    │       ├── compose-ui/
+    │       │   └── SKILL.md
+    │       ├── android-viewmodel/
+    │       │   └── SKILL.md
+    │       └── ... (other skills)
+    ├── app/
+    └── ...
+    ```
+  </Step>
+  
+  <Step title="Restart your IDE or agent">
+    Some extensions (like GitHub Copilot) may need a window reload to index the new skills.
+    
+    <CodeGroup>
+    ```bash VS Code
+    # Press Cmd+Shift+P (Mac) or Ctrl+Shift+P (Windows/Linux)
+    # Type: "Reload Window"
+    ```
+    
+    ```bash Android Studio
+    # File > Invalidate Caches and Restart
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Test the installation">
+    Ask your AI assistant a question related to Android development:
+    
+    ```text
+    "How should I structure the new User Profile feature?"
+    ```
+    
+    The agent should now reference the architecture patterns defined in the skills.
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Environment-Specific Setup
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Different AI assistants may look for skills in different locations.
 
-### Step 3: Go live
+### GitHub Copilot & VS Code
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+GitHub Copilot automatically discovers skills in `.github/skills/` when they are part of your workspace.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  No additional configuration needed! Just copy the skills to `.github/skills/` and reload your window.
 </Note>
+
+### Claude / Anthropic
+
+Legacy or direct Claude usage often looks for `.claude/skills/`. You can copy or symlink `.github/skills` to `.claude/skills`.
+
+```bash
+# Create a symlink
+ln -s .github/skills .claude/skills
+```
+
+### OpenCode
+
+OpenCode supports `.opencode/skill/` (note singular `skill`) and `.claude/skills/`. Global skills can be placed in `~/.config/opencode/skill/`.
+
+```bash
+# Project-level skills
+cp -r .github/skills .opencode/skill
+
+# Global skills (available across all projects)
+cp -r .github/skills ~/.config/opencode/skill
+```
+
+### Cursor
+
+Cursor follows the same convention as VS Code and GitHub Copilot:
+
+```bash
+# Copy to .github/skills/
+cp -r awesome-android-agent-skills/.github/skills .github/
+```
+
+## Creating Custom Skills
+
+You can extend the repository with your own custom skills for team-specific patterns or company conventions.
+
+<Steps>
+  <Step title="Create a skill folder">
+    Create a new folder in `.github/skills/` with a descriptive name:
+    
+    ```bash
+    mkdir -p .github/skills/my-custom-skill
+    ```
+  </Step>
+  
+  <Step title="Add a SKILL.md file">
+    Create a `SKILL.md` file with the required frontmatter:
+    
+    ```markdown
+    ---
+    name: my-custom-skill
+    description: Description of what this skill does and when to use it
+    ---
+    
+    # My Custom Skill
+    
+    ## Instructions
+    
+    Provide detailed instructions for the AI agent here.
+    
+    ### 1. First Section
+    - Clear, actionable guidelines
+    - Code examples
+    - Best practices
+    
+    ### 2. Checklist
+    - [ ] Verification step 1
+    - [ ] Verification step 2
+    ```
+  </Step>
+  
+  <Step title="Test your custom skill">
+    Ask your AI assistant to use the skill by mentioning its purpose:
+    
+    ```text
+    "Apply my custom skill to refactor this code"
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Custom skills are perfect for enforcing company-specific coding standards, architectural patterns, or integration guidelines.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Usage Guide" icon="book" href="/usage">
+    Learn how to use skills with different AI assistants
+  </Card>
+  
+  <Card title="Skill Reference" icon="list" href="/introduction">
+    Browse all available skills and their documentation
+  </Card>
+</CardGroup>

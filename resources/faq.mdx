@@ -1,0 +1,386 @@
+---
+title: Frequently Asked Questions
+description: Common questions about Awesome Android Agent Skills - setup, usage, compatibility, and troubleshooting
+---
+
+Find answers to commonly asked questions about Android Agent Skills.
+
+## Setup & Installation
+
+<AccordionGroup>
+  <Accordion title="Where should I place Agent Skills in my project?">
+    The standard location for Agent Skills is `.github/skills/` at the root of your workspace:
+    
+    ```
+    my-android-project/
+    ├── .github/
+    │   └── skills/
+    │       ├── android-architecture/
+    │       │   └── SKILL.md
+    │       └── compose-ui/
+    │           └── SKILL.md
+    ├── app/
+    └── ...
+    ```
+    
+    Different AI platforms may also support:
+    - **Claude/Anthropic**: `.claude/skills/`
+    - **OpenCode**: `.opencode/skill/` (note: singular) or `~/.config/opencode/skill/` for global skills
+    
+    You can copy or symlink the `.github/skills/` directory to these alternate locations if needed.
+  </Accordion>
+
+  <Accordion title="Do I need to install anything to use Agent Skills?">
+    No installation is required. Agent Skills are simply markdown files that your AI coding assistant reads automatically when:
+    
+    1. The skills are placed in a supported directory (`.github/skills/`, `.claude/skills/`, etc.)
+    2. You're working in a project that contains those skills
+    3. You ask a question or request work that matches a skill's description
+    
+    Some extensions (like GitHub Copilot) may require a window reload after adding new skills to index them.
+  </Accordion>
+
+  <Accordion title="Can I use these skills in multiple projects?">
+    Yes! There are several approaches:
+    
+    1. **Copy the skills**: Copy the `.github/skills/` directory to each project where you want to use them
+    2. **Global skills** (OpenCode): Place skills in `~/.config/opencode/skill/` to make them available across all projects
+    3. **Symlinks**: Create symbolic links from your project to a central skills repository
+    4. **Git submodule**: Add the Awesome Android Agent Skills repository as a git submodule
+    
+    Choose the approach that best fits your workflow.
+  </Accordion>
+
+  <Accordion title="How do I update skills to the latest version?">
+    If you copied the skills to your project:
+    
+    1. Navigate to the Awesome Android Agent Skills repository
+    2. Pull the latest changes: `git pull origin main`
+    3. Copy the updated `.github/skills/` directory to your project
+    4. Restart or reload your AI coding assistant
+    
+    If you're using a git submodule:
+    
+    ```bash
+    git submodule update --remote
+    git commit -m "Update Agent Skills"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Usage & Behavior
+
+<AccordionGroup>
+  <Accordion title="How does the AI agent know which skill to use?">
+    AI agents automatically match skills based on:
+    
+    1. **Context**: The files you're working with and the nature of your code
+    2. **Your request**: The question you ask or task you describe
+    3. **Skill descriptions**: The `description` field in each skill's frontmatter
+    
+    For example, if you ask "How should I structure my repository?", an agent might load the `android-data-layer` skill because its description mentions "Repository Pattern".
+    
+    You can also explicitly reference a skill:
+    
+    ```
+    Read .github/skills/compose-ui/SKILL.md and refactor this screen
+    ```
+  </Accordion>
+
+  <Accordion title="Can I use multiple skills at the same time?">
+    Yes! Agents can load and apply multiple relevant skills simultaneously. For example:
+    
+    - When creating a new feature, the agent might use `android-architecture` for structure, `compose-ui` for UI components, and `android-viewmodel` for state management
+    - The skills are designed to work together and reference each other where appropriate
+    
+    The agent determines which skills are relevant based on your request and the code context.
+  </Accordion>
+
+  <Accordion title="What if I disagree with a skill's recommendations?">
+    Agent Skills are guidelines, not hard requirements. You have several options:
+    
+    1. **Override in conversation**: Simply tell the agent "don't use that pattern, use this instead"
+    2. **Modify the skill**: Edit the `SKILL.md` file to match your team's preferences
+    3. **Remove the skill**: Delete skills you don't want the agent to use
+    4. **Create a custom skill**: Write your own skill with your preferred patterns
+    
+    Skills work best when they reflect your actual project standards.
+  </Accordion>
+
+  <Accordion title="Do Agent Skills work offline?">
+    Yes! Agent Skills are local markdown files stored in your project. They don't require internet access.
+    
+    However, the AI agent itself (GitHub Copilot, Claude, etc.) typically requires an internet connection to process your requests and generate code.
+  </Accordion>
+</AccordionGroup>
+
+## Compatibility
+
+<AccordionGroup>
+  <Accordion title="Which AI coding assistants support Agent Skills?">
+    Agent Skills work with context-aware AI coding assistants, including:
+    
+    - **GitHub Copilot** (Workspace and Chat)
+    - **Claude** / Anthropic API integrations
+    - **Cursor** IDE
+    - **OpenCode**
+    - Any LLM that can read project files and markdown
+    
+    The level of automatic skill detection varies by platform. Some require you to explicitly point the agent to a skill file.
+  </Accordion>
+
+  <Accordion title="Are these skills Android-specific?">
+    Yes, the Awesome Android Agent Skills repository focuses specifically on modern Android development with:
+    
+    - Jetpack Compose
+    - Kotlin Coroutines
+    - Hilt (Dependency Injection)
+    - Room (Database)
+    - Retrofit (Networking)
+    - Clean Architecture patterns
+    
+    However, the **concept** of Agent Skills works for any domain. You can create skills for iOS, web development, backend services, or any other specialization.
+  </Accordion>
+
+  <Accordion title="What Android versions do these skills target?">
+    The skills follow modern Android best practices as of 2025, targeting:
+    
+    - **Minimum SDK**: Typically API 24+ (Android 7.0)
+    - **Target SDK**: Latest stable release
+    - **Compose**: Modern Jetpack Compose (not XML-based layouts, though we include an XML-to-Compose migration skill)
+    - **Kotlin**: Modern Kotlin with coroutines and flow
+    
+    Individual skills may specify version requirements in their documentation.
+  </Accordion>
+
+  <Accordion title="Can I use these with Java instead of Kotlin?">
+    These skills are optimized for **Kotlin** and modern Android development practices. While some architectural principles apply to Java (like Clean Architecture and the Repository Pattern), the code examples and specific recommendations assume Kotlin.
+    
+    If you're maintaining a Java codebase, you may need to:
+    
+    1. Translate Kotlin examples to Java
+    2. Adapt coroutine-based patterns to RxJava or callbacks
+    3. Create custom skills tailored to your Java stack
+  </Accordion>
+</AccordionGroup>
+
+## Customization
+
+<AccordionGroup>
+  <Accordion title="Can I modify the existing skills?">
+    Absolutely! That's encouraged. The skills are templates that you should adapt to your team's needs:
+    
+    1. Edit the `SKILL.md` files directly in your project
+    2. Add project-specific patterns or remove patterns you don't use
+    3. Include references to your internal documentation or style guides
+    4. Adjust code examples to match your project's conventions
+    
+    The skills work best when they reflect your actual practices.
+  </Accordion>
+
+  <Accordion title="How do I create my own custom skill?">
+    Creating a custom skill is straightforward:
+    
+    1. Create a new directory in `.github/skills/` (e.g., `my-custom-skill`)
+    2. Add a `SKILL.md` file with required frontmatter:
+    
+    ```markdown
+    ---
+    name: my-custom-skill
+    description: Description of what this skill does
+    ---
+    
+    # Instructions
+    Your instructions here...
+    ```
+    
+    See the [Creating Custom Skills](/resources/creating-custom-skills) guide for detailed steps and best practices.
+  </Accordion>
+
+  <Accordion title="Can I combine skills from different sources?">
+    Yes! You can mix skills from:
+    
+    - The Awesome Android Agent Skills repository
+    - Your own custom skills
+    - Skills from other repositories or teams
+    - Company-wide standard skills
+    
+    Just ensure each skill has a unique `name` in its frontmatter to avoid conflicts.
+  </Accordion>
+
+  <Accordion title="What should I include in a skill's description?">
+    The description should clearly state:
+    
+    1. **What** the skill covers (domain/technology)
+    2. **When** to use it (scenarios/triggers)
+    
+    Examples:
+    
+    **Good description**:
+    ```yaml
+    description: Best practices for building UI with Jetpack Compose, focusing on state hoisting, performance optimizations, and theming. Use this when writing or refactoring Composable functions.
+    ```
+    
+    **Too vague**:
+    ```yaml
+    description: Help with Compose
+    ```
+    
+    Specific descriptions help agents automatically load the right skills at the right time.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The agent isn't using my skills. What's wrong?">
+    Try these troubleshooting steps:
+    
+    1. **Verify location**: Ensure skills are in `.github/skills/` or your platform's expected directory
+    2. **Check structure**: Each skill should have its own folder with a `SKILL.md` file
+    3. **Validate frontmatter**: Confirm the YAML frontmatter has both `name` and `description` fields
+    4. **Restart the agent**: Reload your workspace or restart your IDE
+    5. **Be specific**: Ask questions that clearly match a skill's description
+    6. **Explicit reference**: Try explicitly mentioning the skill: "Use the compose-ui skill to..."
+    
+    If problems persist, check your AI assistant's documentation for skill support.
+  </Accordion>
+
+  <Accordion title="A skill's instructions conflict with my project's patterns. What should I do?">
+    You have several options:
+    
+    1. **Edit the skill**: Modify the `SKILL.md` file to match your project's patterns
+    2. **Remove the skill**: Delete skills that don't apply to your project
+    3. **Override in conversation**: Tell the agent to ignore specific recommendations
+    4. **Create a custom skill**: Write a new skill that supersedes the original
+    
+    Skills should be living documentation that evolves with your project.
+  </Accordion>
+
+  <Accordion title="Can I disable specific skills temporarily?">
+    Yes, you can:
+    
+    1. **Rename the folder**: Change `android-architecture` to `_android-architecture` (leading underscore)
+    2. **Move it out**: Temporarily move the skill folder outside `.github/skills/`
+    3. **Use .gitignore**: Add the skill folder to `.gitignore` to exclude it
+    4. **Override in conversation**: Ask the agent not to use a specific skill for the current task
+    
+    Most agents will only discover skills in the standard locations with valid `SKILL.md` files.
+  </Accordion>
+
+  <Accordion title="The agent is following outdated patterns from a skill. How do I fix this?">
+    Update the skill's content:
+    
+    1. Open the relevant `SKILL.md` file
+    2. Update the outdated instructions or code examples
+    3. Save the file
+    4. Restart or reload your AI coding assistant
+    5. Try your request again
+    
+    Consider contributing improvements back to the Awesome Android Agent Skills repository if you find outdated patterns.
+  </Accordion>
+
+  <Accordion title="How do I know which skills the agent loaded for my request?">
+    This varies by platform:
+    
+    - **GitHub Copilot**: May show referenced files in the chat interface
+    - **Claude**: You can ask "Which skills are you using?" or "What instructions are you following?"
+    - **Cursor**: Check the context panel to see loaded files
+    
+    You can also infer loaded skills by observing whether the agent's responses follow specific skill patterns.
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Should I commit skills to version control?">
+    **Yes!** Skills should be committed to git alongside your project code because:
+    
+    1. **Team consistency**: Everyone uses the same architectural patterns
+    2. **Version history**: Track how your standards evolve over time
+    3. **Code review**: Skills can be reviewed and discussed like any code
+    4. **Onboarding**: New team members get the same AI assistance as veterans
+    
+    Treat skills as living documentation that evolves with your project.
+  </Accordion>
+
+  <Accordion title="How often should I update skills?">
+    Update skills when:
+    
+    1. **Architecture changes**: You adopt new patterns or libraries
+    2. **Dependencies upgrade**: Major version updates to Compose, Hilt, etc.
+    3. **Team decisions**: You establish new conventions or deprecate old ones
+    4. **Pain points emerge**: You notice the agent making consistent mistakes
+    5. **Community updates**: The Awesome Android Agent Skills repository releases improvements
+    
+    Review skills quarterly or when starting major refactors.
+  </Accordion>
+
+  <Accordion title="What's the ideal number of skills for a project?">
+    There's no fixed number, but consider:
+    
+    - **Quality over quantity**: 5-10 well-maintained skills are better than 50 outdated ones
+    - **Focused skills**: Each skill should cover one clear domain
+    - **Project needs**: A simple app might use 3-5 skills; a complex app might use 15+
+    
+    Start with the core Android skills (architecture, Compose, ViewModel, data layer) and add more as needed.
+  </Accordion>
+
+  <Accordion title="Should I create a skill for every library we use?">
+    Not necessarily. Create skills for:
+    
+    - **Complex patterns**: Libraries with non-obvious best practices (e.g., Compose, Coroutines)
+    - **Team standards**: When you have specific conventions for a library
+    - **Frequent use**: Libraries your team uses extensively
+    
+    Skip skills for:
+    
+    - **Simple libraries**: Well-documented libraries with straightforward usage
+    - **Rare dependencies**: Libraries used in only one or two places
+    - **Standard APIs**: When official documentation is sufficient
+  </Accordion>
+</AccordionGroup>
+
+## Contributing
+
+<AccordionGroup>
+  <Accordion title="How can I contribute to Awesome Android Agent Skills?">
+    Contributions are welcome! You can:
+    
+    1. **Report issues**: Found outdated patterns or errors? Open an issue on GitHub
+    2. **Suggest improvements**: Have ideas for better instructions? Start a discussion
+    3. **Submit new skills**: Created a useful skill? Submit a pull request
+    4. **Update existing skills**: Fix typos, improve examples, or add missing information
+    
+    Check the repository's contributing guidelines for specific requirements.
+  </Accordion>
+
+  <Accordion title="What makes a good skill contribution?">
+    Quality skills should:
+    
+    - **Follow modern best practices** (2025 Android standards)
+    - **Include clear examples** with working code snippets
+    - **Explain the "why"** not just the "what"
+    - **Be well-organized** with logical sections and headings
+    - **Reference official documentation** where appropriate
+    - **Include checklists** for implementation verification
+    - **Work well with other skills** in the collection
+    
+    See the [Creating Custom Skills](/resources/creating-custom-skills) guide for detailed best practices.
+  </Accordion>
+
+  <Accordion title="Can I share skills from my private project?">
+    Yes, if:
+    
+    1. **No proprietary information**: Remove company-specific details, internal URLs, or trade secrets
+    2. **Generalizable patterns**: The skill applies to Android development broadly, not just your project
+    3. **Proper licensing**: Ensure you have permission to share any included code or documentation
+    
+    Genericize internal skills before contributing them to public repositories.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+Have a question not covered here? Open an issue on the [Awesome Android Agent Skills repository](https://github.com/user/awesome-android-agent-skills) or check the [Agent Skills documentation](https://agentskills.io).
+</Note>

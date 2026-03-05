@@ -1,0 +1,570 @@
+---
+title: 'Android Networking with Retrofit'
+description: 'Expert guidance on type-safe HTTP networking with Retrofit, coroutines, and Hilt integration'
+---
+
+## Overview
+
+Retrofit is the de facto HTTP client for Android, providing type-safe REST API access with minimal boilerplate. This skill covers modern Retrofit patterns using Kotlin coroutines, kotlinx.serialization, OkHttp configuration, and Hilt dependency injection.
+
+## When to Use This Skill
+
+Invoke this skill when you need to:
+
+- Set up a new network layer for an Android app
+- Define REST API service interfaces
+- Configure HTTP clients with interceptors, timeouts, and logging
+- Integrate Retrofit with Hilt for dependency injection
+- Handle API responses and errors in repositories
+- Work with complex request bodies, headers, or query parameters
+
+## Core Concepts
+
+### Service Interface Definition
+
+Retrofit uses annotated interface methods to define API endpoints:
+
+```kotlin
+interface GitHubService {
+    @GET("users/{username}")
+    suspend fun getUser(@Path("username") username: String): User
+    
+    @GET("users/{username}/repos")
+    suspend fun listRepos(
+        @Path("username") username: String,
+        @Query("sort") sort: String? = null
+    ): List<Repo>
+}
+```
+
+### Retrofit Instance Creation
+
+```kotlin
+val retrofit = Retrofit.Builder()
+    .baseUrl("https://api.github.com/")
+    .client(okHttpClient)
+    .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+    .build()
+
+val service = retrofit.create(GitHubService::class.java)
+```
+
+## URL Manipulation
+
+Retrofit provides flexible URL construction through annotations:
+
+### Dynamic Path Parameters
+
+Use `@Path` to substitute values into the URL:
+
+```kotlin
+interface SearchService {
+    @GET("group/{id}/users")
+    suspend fun groupList(
+        @Path("id") groupId: Int
+    ): List<User>
+}
+
+// Generates: GET /group/42/users
+service.groupList(42)
+```
+
+### Query Parameters
+
+Use `@Query` for individual parameters and `@QueryMap` for dynamic sets:
+
+<CodeGroup>
+```kotlin Individual Parameters
+@GET("search/users")
+suspend fun searchUsers(
+    @Query("q") query: String,
+    @Query("page") page: Int? = null,
+    @Query("per_page") perPage: Int? = null
+): SearchResult
+
+// Generates: GET /search/users?q=android&page=2&per_page=50
+service.searchUsers("android", 2, 50)
+```
+
+```kotlin Query Map
+@GET("search/repositories")
+suspend fun searchRepos(
+    @Query("q") query: String,
+    @QueryMap filters: Map<String, String> = emptyMap()
+): List<Repo>
+
+// Generates: GET /search/repositories?q=kotlin&language=kotlin&stars=100
+service.searchRepos(
+    query = "kotlin",
+    filters = mapOf(
+        "language" to "kotlin",
+        "stars" to "100"
+    )
+)
+```
+</CodeGroup>
+
+<Warning>
+Query parameters with `null` values are automatically omitted from the request. Use `@Query(encoded = true)` if the parameter value is already URL-encoded.
+</Warning>
+
+## Request Body and Form Data
+
+### JSON Body
+
+Use `@Body` to send objects as JSON:
+
+```kotlin
+@POST("users")
+suspend fun createUser(@Body user: CreateUserRequest): User
+
+data class CreateUserRequest(
+    val username: String,
+    val email: String,
+    val bio: String?
+)
+
+// Sends: POST /users
+// Body: {"username":"john","email":"john@example.com","bio":null}
+service.createUser(CreateUserRequest("john", "john@example.com", null))
+```
+
+### Form URL Encoded
+
+Use `@FormUrlEncoded` with `@Field` for form submissions:
+
+```kotlin
+@FormUrlEncoded
+@POST("user/edit")
+suspend fun updateUser(
+    @Field("first_name") firstName: String,
+    @Field("last_name") lastName: String,
+    @Field("age") age: Int
+): User
+
+// Sends: POST /user/edit
+// Content-Type: application/x-www-form-urlencoded
+// Body: first_name=John&last_name=Doe&age=30
+service.updateUser("John", "Doe", 30)
+```
+
+### Multipart File Upload
+
+Use `@Multipart` with `@Part` for file uploads:
+
+```kotlin
+@Multipart
+@PUT("user/photo")
+suspend fun uploadPhoto(
+    @Part("description") description: RequestBody,
+    @Part photo: MultipartBody.Part
+): User
+
+// Usage
+val file = File("/path/to/photo.jpg")
+val requestBody = file.asRequestBody("image/jpeg".toMediaType())
+val photoPart = MultipartBody.Part.createFormData(
+    "photo",
+    file.name,
+    requestBody
+)
+val descriptionBody = "Profile picture".toRequestBody("text/plain".toMediaType())
+
+service.uploadPhoto(descriptionBody, photoPart)
+```
+
+## Header Manipulation
+
+### Static Headers
+
+Use `@Headers` for fixed headers:
+
+```kotlin
+@Headers(
+    "Cache-Control: max-age=640000",
+    "Accept: application/json"
+)
+@GET("widget/list")
+suspend fun widgetList(): List<Widget>
+```
+
+### Dynamic Headers
+
+Use `@Header` for runtime values:
+
+<CodeGroup>
+```kotlin Single Header
+@GET("user")
+suspend fun getUser(
+    @Header("Authorization") token: String
+): User
+
+// Sends: GET /user
+// Headers: Authorization: Bearer abc123
+service.getUser("Bearer abc123")
+```
+
+```kotlin Header Map
+@GET("data")
+suspend fun getData(
+    @HeaderMap headers: Map<String, String>
+): Data
+
+service.getData(
+    mapOf(
+        "Authorization" to "Bearer abc123",
+        "X-Request-ID" to "req-001"
+    )
+)
+```
+</CodeGroup>
+
+### Global Headers with Interceptors
+
+Use OkHttp interceptors for headers applied to all requests:
+
+```kotlin
+class AuthInterceptor(private val tokenProvider: TokenProvider) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val originalRequest = chain.request()
+        val token = tokenProvider.getToken()
+        
+        val authenticatedRequest = originalRequest.newBuilder()
+            .header("Authorization", "Bearer $token")
+            .build()
+        
+        return chain.proceed(authenticatedRequest)
+    }
+}
+
+val okHttpClient = OkHttpClient.Builder()
+    .addInterceptor(AuthInterceptor(tokenProvider))
+    .build()
+```
+
+## Response Handling with Coroutines
+
+Retrofit's `suspend` functions provide two response patterns:
+
+### Direct Body (Throws on Error)
+
+<CodeGroup>
+```kotlin Service Definition
+@GET("users/{username}")
+suspend fun getUser(@Path("username") username: String): User
+```
+
+```kotlin Repository Usage
+class UserRepository(private val service: GitHubService) {
+    suspend fun getUser(username: String): Result<User> = runCatching {
+        service.getUser(username) // Throws HttpException on 4xx/5xx
+    }
+}
+```
+</CodeGroup>
+
+**Behavior**: Returns the deserialized body on success (2xx). Throws `HttpException` for 4xx/5xx responses.
+
+### Response Wrapper (Manual Error Handling)
+
+<CodeGroup>
+```kotlin Service Definition
+@GET("users/{username}")
+suspend fun getUser(@Path("username") username: String): Response<User>
+```
+
+```kotlin Repository Usage
+class UserRepository(private val service: GitHubService) {
+    suspend fun getUser(username: String): Result<User> {
+        val response = service.getUser(username)
+        
+        return if (response.isSuccessful) {
+            Result.success(response.body()!!)
+        } else {
+            when (response.code()) {
+                401 -> Result.failure(UnauthorizedException())
+                404 -> Result.failure(UserNotFoundException())
+                else -> Result.failure(ApiException(response.message()))
+            }
+        }
+    }
+}
+```
+</CodeGroup>
+
+**Behavior**: Returns a `Response<T>` object with status code, headers, body, and error body. Does **not** throw on non-2xx responses.
+
+<Warning>
+When using `Response<T>`, always check `response.isSuccessful` before accessing `response.body()`. The body will be `null` for error responses.
+</Warning>
+
+## Hilt Integration
+
+Provide Retrofit instances as singletons using Hilt modules:
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideJson(): Json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+        explicitNulls = false
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(
+            HttpLoggingInterceptor().apply {
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BODY
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
+            }
+        )
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(
+        okHttpClient: OkHttpClient,
+        json: Json
+    ): Retrofit = Retrofit.Builder()
+        .baseUrl("https://api.github.com/")
+        .client(okHttpClient)
+        .addConverterFactory(
+            json.asConverterFactory("application/json".toMediaType())
+        )
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideGitHubService(retrofit: Retrofit): GitHubService =
+        retrofit.create(GitHubService::class.java)
+}
+```
+
+### Multiple Base URLs
+
+Use qualifiers for multiple API endpoints:
+
+```kotlin
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class GitHubApi
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class PrivateApi
+
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+    
+    @Provides
+    @Singleton
+    @GitHubApi
+    fun provideGitHubRetrofit(okHttpClient: OkHttpClient): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .client(okHttpClient)
+            .build()
+    
+    @Provides
+    @Singleton
+    @PrivateApi
+    fun providePrivateRetrofit(okHttpClient: OkHttpClient): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://internal-api.company.com/")
+            .client(okHttpClient)
+            .build()
+    
+    @Provides
+    @Singleton
+    fun provideGitHubService(@GitHubApi retrofit: Retrofit): GitHubService =
+        retrofit.create(GitHubService::class.java)
+}
+```
+
+## Error Handling in Repositories
+
+Always handle exceptions in the repository layer:
+
+```kotlin
+class GitHubRepository @Inject constructor(
+    private val service: GitHubService
+) {
+    suspend fun getRepos(username: String): Result<List<Repo>> = runCatching {
+        service.listRepos(username)
+    }.onFailure { exception ->
+        when (exception) {
+            is HttpException -> {
+                // HTTP error (4xx, 5xx)
+                when (exception.code()) {
+                    401 -> Log.e(TAG, "Unauthorized")
+                    404 -> Log.e(TAG, "User not found")
+                    else -> Log.e(TAG, "HTTP ${exception.code()}")
+                }
+            }
+            is UnknownHostException -> {
+                // No internet connection
+                Log.e(TAG, "No internet connection")
+            }
+            is SocketTimeoutException -> {
+                // Request timeout
+                Log.e(TAG, "Request timed out")
+            }
+            else -> {
+                // Other errors
+                Log.e(TAG, "Unknown error", exception)
+            }
+        }
+    }
+}
+```
+
+## Advanced Patterns
+
+### DTO to Domain Mapping
+
+Decouple API models from domain models:
+
+```kotlin
+// Network layer DTO
+@Serializable
+data class UserDto(
+    val login: String,
+    val id: Int,
+    @SerialName("avatar_url") val avatarUrl: String,
+    @SerialName("html_url") val htmlUrl: String
+)
+
+// Domain model
+data class User(
+    val username: String,
+    val profileUrl: String,
+    val avatarUrl: String
+)
+
+// Mapper
+fun UserDto.toDomain(): User = User(
+    username = login,
+    profileUrl = htmlUrl,
+    avatarUrl = avatarUrl
+)
+
+// Repository
+class UserRepository @Inject constructor(
+    private val service: GitHubService
+) {
+    suspend fun getUser(username: String): Result<User> = runCatching {
+        service.getUser(username).toDomain()
+    }
+}
+```
+
+### Request/Response Interceptors
+
+Log and modify requests/responses:
+
+```kotlin
+class RequestInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        
+        // Modify request
+        val modifiedRequest = request.newBuilder()
+            .addHeader("X-App-Version", BuildConfig.VERSION_NAME)
+            .build()
+        
+        val response = chain.proceed(modifiedRequest)
+        
+        // Log response time
+        val requestTime = request.header("X-Request-Time")?.toLong() ?: 0L
+        val responseTime = System.currentTimeMillis()
+        Log.d(TAG, "Request took ${responseTime - requestTime}ms")
+        
+        return response
+    }
+}
+```
+
+## Best Practices
+
+1. **Use `suspend` functions**—avoid `Call<T>` callback style
+2. **Prefer `Response<T>`** when you need to handle specific status codes
+3. **Use `@Path` and `@Query`** instead of manual URL concatenation
+4. **Configure logging** in debug builds only
+5. **Set sensible timeouts** (connect, read, write)
+6. **Map DTOs to domain models** to decouple layers
+7. **Inject dispatchers** in repositories for testability
+8. **Use Hilt** for dependency injection
+9. **Handle errors** in repositories, not ViewModels
+10. **Use `runCatching`** for clean error handling
+
+## Troubleshooting
+
+### Issue: "Unable to create converter for class"
+
+**Cause**: Missing or misconfigured converter factory
+
+**Fix**: Add kotlinx.serialization converter:
+
+```kotlin
+dependencies {
+    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
+}
+
+.addConverterFactory(
+    json.asConverterFactory("application/json".toMediaType())
+)
+```
+
+### Issue: "Expected BEGIN_OBJECT but was STRING"
+
+**Cause**: API returning different format than expected
+
+**Fix**: Check API documentation and update data class:
+
+```kotlin
+// If API returns: {"data": "error message"}
+@Serializable
+data class ApiResponse(
+    val data: String // Not an object
+)
+```
+
+### Issue: Request times out consistently
+
+**Cause**: Default timeouts too aggressive
+
+**Fix**: Increase timeouts in OkHttpClient:
+
+```kotlin
+OkHttpClient.Builder()
+    .connectTimeout(60, TimeUnit.SECONDS)
+    .readTimeout(60, TimeUnit.SECONDS)
+    .writeTimeout(60, TimeUnit.SECONDS)
+    .build()
+```
+
+## Implementation Checklist
+
+- [ ] Add Retrofit, OkHttp, and kotlinx.serialization dependencies
+- [ ] Define service interface with `suspend` functions
+- [ ] Configure `Json` with `ignoreUnknownKeys = true`
+- [ ] Set up `OkHttpClient` with logging and timeouts
+- [ ] Create Retrofit instance with base URL and converter factory
+- [ ] Provide services via Hilt `@Singleton` in `NetworkModule`
+- [ ] Handle errors in repository layer using `runCatching`
+- [ ] Map API DTOs to domain models
+- [ ] Inject `CoroutineDispatcher` for testability
+- [ ] Write repository tests using `runTest`

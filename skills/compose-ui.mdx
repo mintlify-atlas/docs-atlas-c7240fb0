@@ -1,0 +1,383 @@
+---
+title: "Compose UI Best Practices"
+description: "Build performant, reusable, and testable UI components with Jetpack Compose"
+---
+
+## What This Skill Provides
+
+The Compose UI skill teaches best practices for building UI with Jetpack Compose, focusing on state hoisting, performance optimizations, and theming. Use this skill when writing or refactoring Composable functions to ensure your code follows modern Compose patterns.
+
+## When to Use This Skill
+
+- Creating new Composable functions
+- Refactoring existing UI components
+- Optimizing Compose performance
+- Implementing proper state management patterns
+- Setting up Material Design theming
+
+## State Hoisting Pattern
+
+Make Composables **stateless** whenever possible by moving state to the caller. This follows the unidirectional data flow pattern.
+
+<CodeGroup>
+```kotlin Stateless Composable
+@Composable
+fun MyComponent(
+    value: String,              // State flows down
+    onValueChange: (String) -> Unit, // Events flow up
+    modifier: Modifier = Modifier // Standard modifier parameter
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+    )
+}
+```
+
+```kotlin Screen-Level Usage
+@Composable
+fun MyScreen(viewModel: MyViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
+    MyComponent(
+        value = uiState.text,
+        onValueChange = { viewModel.updateText(it) }
+    )
+}
+```
+</CodeGroup>
+
+<Note>
+**Benefits of State Hoisting:**
+- Decouples UI from state storage
+- Makes components easier to preview and test
+- Enables better code reuse
+- Simplifies ViewModel integration
+</Note>
+
+## Modifier Best Practices
+
+Always provide a `modifier` parameter as the first optional parameter in your Composables.
+
+```kotlin Modifier Pattern
+@Composable
+fun CustomCard(
+    title: String,
+    content: String,
+    modifier: Modifier = Modifier // Default parameter
+) {
+    Card(
+        modifier = modifier // Apply to root element
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.headlineSmall)
+            Text(content)
+        }
+    }
+}
+```
+
+<Warning>
+**Modifier Ordering Matters!**
+
+`padding().clickable()` is different from `clickable().padding()`
+
+Generally apply layout-affecting modifiers (like padding) **after** click listeners if you want the padding to be clickable.
+</Warning>
+
+<Tabs>
+  <Tab title="Clickable Padding">
+    ```kotlin
+    Box(
+        modifier = Modifier
+            .clickable { /* Click handler */ }
+            .padding(16.dp) // Padding is clickable
+    )
+    ```
+  </Tab>
+  <Tab title="Non-Clickable Padding">
+    ```kotlin
+    Box(
+        modifier = Modifier
+            .padding(16.dp) // Padding is NOT clickable
+            .clickable { /* Click handler */ }
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Performance Optimization
+
+### Using `remember`
+
+Use `remember` to cache expensive calculations across recompositions.
+
+```kotlin Remember Example
+@Composable
+fun ExpensiveComponent(items: List<Item>) {
+    val processedItems = remember(items) {
+        items.sortedBy { it.priority }.take(10)
+    }
+    
+    LazyColumn {
+        items(processedItems) { item ->
+            ItemRow(item)
+        }
+    }
+}
+```
+
+### Using `derivedStateOf`
+
+Use `derivedStateOf` when a state changes frequently but the UI only needs to react to a threshold or summary.
+
+```kotlin DerivedState Example
+@Composable
+fun ScrollableList(items: List<Item>) {
+    val listState = rememberLazyListState()
+    
+    // Only recompose when crossing the threshold
+    val showJumpToTop by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 }
+    }
+    
+    Box {
+        LazyColumn(state = listState) {
+            items(items) { item ->
+                ItemRow(item)
+            }
+        }
+        
+        if (showJumpToTop) {
+            FloatingActionButton(
+                onClick = { /* scroll to top */ },
+                modifier = Modifier.align(Alignment.BottomEnd)
+            ) {
+                Icon(Icons.Default.KeyboardArrowUp, "Jump to top")
+            }
+        }
+    }
+}
+```
+
+<Note>
+`derivedStateOf` prevents unnecessary recompositions when the scroll position changes frequently but you only care about whether to show/hide the button.
+</Note>
+
+### Lambda Stability
+
+Prefer method references or remembered lambdas to prevent unstable types from triggering recomposition.
+
+<CodeGroup>
+```kotlin Good: Method Reference
+@Composable
+fun MyScreen(viewModel: MyViewModel) {
+    Button(onClick = viewModel::onSubmit) {
+        Text("Submit")
+    }
+}
+```
+
+```kotlin Good: Remembered Lambda
+@Composable
+fun MyScreen(onEvent: (Event) -> Unit) {
+    val onClick = remember(onEvent) {
+        { onEvent(Event.Submit) }
+    }
+    
+    Button(onClick = onClick) {
+        Text("Submit")
+    }
+}
+```
+
+```kotlin Avoid: Inline Lambda Creation
+@Composable
+fun MyScreen(onEvent: (Event) -> Unit) {
+    // Creates new lambda on every recomposition
+    Button(onClick = { onEvent(Event.Submit) }) {
+        Text("Submit")
+    }
+}
+```
+</CodeGroup>
+
+## Theming and Resources
+
+Use Material Theme components instead of hardcoded colors or text styles.
+
+```kotlin Theming Example
+@Composable
+fun ThemedCard(title: String, description: String) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
+}
+```
+
+<Tabs>
+  <Tab title="Correct">
+    ```kotlin
+    Text(
+        text = "Hello",
+        style = MaterialTheme.typography.headlineMedium,
+        color = MaterialTheme.colorScheme.primary
+    )
+    ```
+  </Tab>
+  <Tab title="Avoid">
+    ```kotlin
+    Text(
+        text = "Hello",
+        fontSize = 24.sp,
+        color = Color(0xFF6200EE)
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Previews
+
+Create a private preview function for every public Composable.
+
+```kotlin Preview Pattern
+@Composable
+fun UserProfile(
+    name: String,
+    email: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.padding(16.dp)) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.titleLarge
+        )
+        Text(
+            text = email,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Light Mode")
+@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Dark Mode")
+@Composable
+private fun UserProfilePreview() {
+    MaterialTheme {
+        UserProfile(
+            name = "John Doe",
+            email = "john.doe@example.com"
+        )
+    }
+}
+```
+
+<Note>
+**Preview Best Practices:**
+- Use `@Preview(showBackground = true)` for better visibility
+- Include Light and Dark mode previews
+- Pass dummy/static data to stateless Composables
+- Wrap preview content in MaterialTheme
+</Note>
+
+## Common Use Cases
+
+### Building a Stateless Input Form
+
+```kotlin Form Component
+@Composable
+fun LoginForm(
+    username: String,
+    password: String,
+    onUsernameChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        OutlinedTextField(
+            value = username,
+            onValueChange = onUsernameChange,
+            label = { Text("Username") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        OutlinedTextField(
+            value = password,
+            onValueChange = onPasswordChange,
+            label = { Text("Password") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        Button(
+            onClick = onSubmit,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Login")
+        }
+    }
+}
+```
+
+### Organizing Reusable Components
+
+Organize simple UI components into specific files (e.g., `DesignSystem.kt` or `Components.kt`) if they are shared across features.
+
+```kotlin file:DesignSystem.kt
+@Composable
+fun PrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary
+        )
+    ) {
+        Text(text)
+    }
+}
+
+@Composable
+fun SectionTitle(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        modifier = modifier.padding(vertical = 8.dp)
+    )
+}
+```
+
+## Related Skills
+
+- [Compose Navigation](/skills/compose-navigation) - Implement navigation between screens
+- [XML to Compose Migration](/skills/xml-to-compose-migration) - Convert XML layouts to Compose
+- [Coil Compose](/skills/coil-compose) - Load images efficiently in Compose

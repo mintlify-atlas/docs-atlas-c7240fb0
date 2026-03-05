@@ -1,0 +1,207 @@
+---
+title: 'Android Architecture'
+description: 'Expert guidance on setting up and maintaining a modern Android application architecture using Clean Architecture and Hilt'
+---
+
+## Overview
+
+The `android-architecture` skill provides expert guidance on structuring Android applications using modern architecture patterns. It focuses on Clean Architecture principles, proper layering, Hilt dependency injection, and modularization strategies for production apps.
+
+**When to use this skill:**
+- Setting up new Android projects
+- Refactoring existing apps to modern architecture
+- Implementing dependency injection with Hilt
+- Designing multi-module project structures
+- Establishing clear separation of concerns
+
+## High-Level Architecture Layers
+
+The architecture is structured into three primary layers with strict dependency rules: dependencies must flow **inwards** (or downwards) toward the core logic.
+
+<AccordionGroup>
+  <Accordion title="UI Layer (Presentation)">
+    **Responsibility:** Displaying data and handling user interactions
+    
+    **Components:**
+    - Activities
+    - Fragments
+    - Composables
+    - ViewModels
+    
+    **Dependencies:** Depends on the Domain Layer (or Data Layer if simple). **Never** depends on Data Layer implementation details directly.
+  </Accordion>
+
+  <Accordion title="Domain Layer (Business Logic) [Optional but Recommended]">
+    **Responsibility:** Encapsulating complex business rules and reuse
+    
+    **Components:**
+    - Use Cases (e.g., `GetLatestNewsUseCase`)
+    - Domain Models (pure Kotlin data classes)
+    
+    **Key Requirement:** Must be **Pure Kotlin** with NO Android framework dependencies (no `android.*` imports)
+    
+    **Dependencies:** Depends on Repository Interfaces only
+  </Accordion>
+
+  <Accordion title="Data Layer">
+    **Responsibility:** Managing application data (fetching, caching, saving)
+    
+    **Components:**
+    - Repositories (implementations)
+    - Data Sources (Retrofit APIs, Room DAOs)
+    
+    **Dependencies:** Depends only on external sources and libraries
+  </Accordion>
+</AccordionGroup>
+
+## Dependency Injection with Hilt
+
+Use **Hilt** for all dependency injection in your Android app.
+
+### Application Setup
+
+```kotlin
+@HiltAndroidApp
+class MyApplication : Application() {
+    // Application initialization
+}
+```
+
+### Activity and Fragment Injection
+
+```kotlin
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+    // Hilt will inject dependencies
+}
+
+@AndroidEntryPoint
+class MyFragment : Fragment() {
+    // Hilt will inject dependencies
+}
+```
+
+### ViewModel Injection
+
+```kotlin
+@HiltViewModel
+class NewsViewModel @Inject constructor(
+    private val getNewsUseCase: GetNewsUseCase
+) : ViewModel() {
+    // ViewModel implementation
+}
+```
+
+### Hilt Modules
+
+<CodeGroup>
+```kotlin Singleton Components
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+    @Provides
+    @Singleton
+    fun provideRetrofit(): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.example.com")
+            .build()
+    }
+}
+```
+
+```kotlin Binding Interfaces
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+    @Binds
+    abstract fun bindNewsRepository(
+        impl: NewsRepositoryImpl
+    ): NewsRepository
+}
+```
+</CodeGroup>
+
+<Tip>
+Use `@Binds` in an abstract class to bind interface implementations - it's cleaner and more efficient than `@Provides`.
+</Tip>
+
+## Modularization Strategy
+
+For production apps, use a multi-module strategy to improve build times and separation of concerns.
+
+```
+:app
+├── :core
+│   ├── :model      (Shared domain models - Pure Kotlin)
+│   ├── :data       (Repositories, Data Sources, Database, Network)
+│   ├── :domain     (Use Cases and Repository Interfaces)
+│   └── :ui         (Shared Composables, Theme, Resources)
+└── :feature
+    ├── :news       (News feature UI and ViewModels)
+    ├── :profile    (Profile feature UI and ViewModels)
+    └── :settings   (Settings feature UI and ViewModels)
+```
+
+### Module Responsibilities
+
+<CardGroup cols={2}>
+  <Card title=":app" icon="mobile">
+    Main entry point that connects features together
+  </Card>
+  <Card title=":core:model" icon="database">
+    Shared domain models (Pure Kotlin)
+  </Card>
+  <Card title=":core:data" icon="server">
+    Repositories, Data Sources, Database, Network
+  </Card>
+  <Card title=":core:domain" icon="brain">
+    Use Cases and Repository Interfaces
+  </Card>
+  <Card title=":core:ui" icon="palette">
+    Shared Composables, Theme, Resources
+  </Card>
+  <Card title=":feature:[name]" icon="puzzle-piece">
+    Standalone features with UI and ViewModels. Depends on `:core:domain` and `:core:ui`
+  </Card>
+</CardGroup>
+
+## Implementation Checklist
+
+<Steps>
+  <Step title="Ensure Pure Domain Layer">
+    Verify that the `Domain` layer has no Android dependencies - it should be pure Kotlin only
+  </Step>
+  
+  <Step title="Main-Safe Repository Functions">
+    Repositories should default to main-safe suspend functions (use `Dispatchers.IO` internally if needed)
+  </Step>
+  
+  <Step title="StateFlow for UI Communication">
+    ViewModels should interact with the UI layer via `StateFlow` (see [android-viewmodel](/skills/android-viewmodel))
+  </Step>
+</Steps>
+
+## Best Practices
+
+<Warning>
+**Never** let the UI Layer depend on Data Layer implementation details directly. Always go through the Domain Layer or use Repository interfaces.
+</Warning>
+
+<Check>
+- Keep the Domain Layer pure Kotlin with no Android framework dependencies
+- Use Hilt for all dependency injection
+- Follow the dependency rule: dependencies flow inward/downward
+- Modularize production apps for better build times and separation
+- Use `@Binds` for interface binding in Hilt modules
+</Check>
+
+## Related Skills
+
+<CardGroup cols={2}>
+  <Card title="ViewModel & State" href="/skills/android-viewmodel" icon="diagram-project">
+    Learn how to implement ViewModels with StateFlow and SharedFlow
+  </Card>
+  <Card title="Data Layer" href="/skills/android-data-layer" icon="database">
+    Implement the Repository pattern with Room and Retrofit
+  </Card>
+</CardGroup>
