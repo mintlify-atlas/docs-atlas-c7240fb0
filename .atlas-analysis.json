@@ -1,0 +1,105 @@
+{
+  "projectType": "general",
+  "projectName": "Awesome Android Agent Skills",
+  "projectDescription": "A collection of standardized Agent Skills to teach AI assistants about modern Android development with Kotlin and Jetpack Compose.",
+  "theme": "palm",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "usage"
+            ]
+          },
+          {
+            "group": "Architecture & State",
+            "pages": [
+              "skills/android-architecture",
+              "skills/android-viewmodel",
+              "skills/android-data-layer"
+            ]
+          },
+          {
+            "group": "UI Development",
+            "pages": [
+              "skills/compose-ui",
+              "skills/compose-navigation",
+              "skills/xml-to-compose-migration",
+              "skills/coil-compose"
+            ]
+          },
+          {
+            "group": "Quality & Testing",
+            "pages": [
+              "skills/android-accessibility",
+              "skills/android-testing"
+            ]
+          },
+          {
+            "group": "Performance",
+            "pages": [
+              "skills/compose-performance-audit",
+              "skills/gradle-build-performance"
+            ]
+          },
+          {
+            "group": "Advanced Topics",
+            "pages": [
+              "skills/kotlin-concurrency-expert",
+              "skills/android-retrofit",
+              "skills/android-gradle-logic",
+              "skills/android-emulator-skill"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Additional Resources",
+            "pages": [
+              "resources/creating-custom-skills",
+              "resources/faq"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "16 specialized Agent Skills for modern Android development",
+    "Expert guidance on Clean Architecture and Jetpack Compose",
+    "Production-ready patterns for ViewModels, State, and Navigation",
+    "Comprehensive testing strategies with Roborazzi and Hilt",
+    "Performance optimization for Compose and Gradle builds",
+    "Accessibility best practices and checklists",
+    "Kotlin Coroutines expertise with structured concurrency",
+    "Compatible with GitHub Copilot, Claude, Gemini, and Cursor"
+  ],
+  "publicApiSurface": [
+    "android-architecture - Clean Architecture and Hilt DI patterns",
+    "compose-ui - Jetpack Compose best practices and state hoisting",
+    "android-viewmodel - StateFlow and SharedFlow patterns",
+    "android-data-layer - Repository pattern with Room and Retrofit",
+    "android-accessibility - WCAG compliance and TalkBack optimization",
+    "android-testing - Unit, Hilt, and screenshot testing strategies",
+    "compose-performance-audit - Recomposition optimization and profiling",
+    "gradle-build-performance - Build speed optimization techniques",
+    "kotlin-concurrency-expert - Coroutines debugging and best practices",
+    "compose-navigation - Type-safe navigation patterns",
+    "android-retrofit - Networking with OkHttp and serialization",
+    "android-gradle-logic - Convention plugins and version catalogs",
+    "xml-to-compose-migration - Migration patterns and component mapping",
+    "coil-compose - Image loading with Coil in Compose",
+    "android-emulator-skill - ADB and UIAutomator automation"
+  ]
+}
